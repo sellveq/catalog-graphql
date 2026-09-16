@@ -1,17 +1,18 @@
 <?php
+
 /**
- * ScandiPWA - Progressive Web App for Magento
- *
- * Copyright © Scandiweb, Inc. All rights reserved.
+ * @category    ScandiPWA
+ * @package     ScandiPWA_CatalogGraphQl
+ * @copyright   Copyright © Scandiweb, Inc. All rights reserved.
+ * @copyright   Modifications © Selveq. All rights reserved.
+ * @license     OSL-3.0 (Open Software License ("OSL") v. 3.0)
  * See LICENSE for license details.
- *
- * @license OSL-3.0 (Open Software License ("OSL") v. 3.0)
- * @package scandipwa/catalog-graphql
- * @link    https://github.com/scandipwa/catalog-graphql
  */
+
+declare(strict_types=1);
+
 namespace ScandiPWA\CatalogGraphQl\Search\Dynamic\Algorithm;
 
-use Magento\Framework\DB\Ddl\Table;
 use Magento\Framework\Search\Adapter\OptionsInterface;
 use Magento\Framework\Search\Dynamic\Algorithm;
 use Magento\Framework\Search\Dynamic\Algorithm\AlgorithmInterface;
@@ -22,37 +23,18 @@ use Magento\Framework\Search\Request\BucketInterface;
 class Improved implements AlgorithmInterface
 {
     /**
-     * @var Algorithm
-     */
-    protected $algorithm;
-
-    /**
-     * @var DataProviderInterface
-     */
-    protected $dataProvider;
-
-    /**
-     * @var OptionsInterface
-     */
-    protected $options;
-
-    /**
      * @param DataProviderInterface $dataProvider
      * @param Algorithm $algorithm
      * @param OptionsInterface $options
      */
     public function __construct(
-        DataProviderInterface $dataProvider,
-        Algorithm $algorithm,
-        OptionsInterface $options
-    ) {
-        $this->algorithm = $algorithm;
-        $this->dataProvider = $dataProvider;
-        $this->options = $options;
-    }
+        private readonly DataProviderInterface $dataProvider,
+        private readonly Algorithm $algorithm,
+        private readonly OptionsInterface $options
+    ) {}
 
     /**
-     * @inheritdoc
+     * {@inheritdoc}
      */
     public function getItems(
         BucketInterface $bucket,
@@ -83,7 +65,7 @@ class Improved implements AlgorithmInterface
 
         $data[0]['from'] = 0;
 
-        foreach ($data as $key => $key){
+        foreach (array_keys($data) as $key) {
             if (isset($data[$key + 1])) {
                 $data[$key]['to'] = $data[$key + 1]['from'];
             }

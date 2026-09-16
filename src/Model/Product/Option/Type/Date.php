@@ -1,29 +1,29 @@
 <?php
+
 /**
- * ScandiPWA_CatalogGraphQl
- *
  * @category    ScandiPWA
  * @package     ScandiPWA_CatalogGraphQl
- * @author      Alfreds Genkins <info@scandiweb.com>
- * @copyright   Copyright (c) 2018 Scandiweb, Ltd (https://scandiweb.com)
+ * @copyright   Copyright © 2018 Scandiweb, Ltd (https://scandiweb.com)
+ * @copyright   Modifications © Selveq. All rights reserved.
+ * @license     OSL-3.0 (Open Software License ("OSL") v. 3.0)
+ * See LICENSE for license details.
  */
+
 declare(strict_types=1);
 
 namespace ScandiPWA\CatalogGraphQl\Model\Product\Option\Type;
 
-use Magento\Catalog\Model\Product\Option\Type\Date as ProductDateOptionType;
 use Magento\CatalogGraphQl\Model\Product\Option\DateType as SourceDateType;
 use Magento\Framework\Exception\LocalizedException;
-use Magento\Framework\Stdlib\DateTime;
 use Magento\Framework\GraphQl\Exception\GraphQlInputException;
+use Magento\Framework\Stdlib\DateTime;
 
-/**
- * @inheritdoc
- */
 class Date extends SourceDateType
 {
     /**
-     * @inheritdoc
+     * {@inheritdoc}
+     * @throws GraphQlInputException
+     * @throws LocalizedException
      */
     public function validateUserValue($values)
     {
@@ -35,10 +35,10 @@ class Date extends SourceDateType
     }
 
     /**
-     * Format date value from string to date array
-     *
-     * @param [] $values
-     * @return []
+     * format date value from string to date array
+     * @param array $values
+     * @return array
+     * @throws GraphQlInputException
      * @throws LocalizedException
      */
     protected function formatValues($values)

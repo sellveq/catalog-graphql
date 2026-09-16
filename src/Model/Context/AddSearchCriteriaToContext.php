@@ -1,12 +1,14 @@
 <?php
+
 /**
- * ScandiPWA_CatalogGraphQl
- *
  * @category    ScandiPWA
  * @package     ScandiPWA_CatalogGraphQl
- * @author      Alfreds Genkins <info@scandiweb.com>
- * @copyright   Copyright (c) 2019 Scandiweb, Ltd (https://scandiweb.com)
+ * @copyright   Copyright © 2019 Scandiweb, Ltd (https://scandiweb.com)
+ * @copyright   Modifications © Selveq. All rights reserved.
+ * @license     OSL-3.0 (Open Software License ("OSL") v. 3.0)
+ * See LICENSE for license details.
  */
+
 declare(strict_types=1);
 
 namespace ScandiPWA\CatalogGraphQl\Model\Context;
@@ -14,17 +16,14 @@ namespace ScandiPWA\CatalogGraphQl\Model\Context;
 use Magento\GraphQl\Model\Query\ContextParametersInterface;
 use Magento\GraphQl\Model\Query\ContextParametersProcessorInterface;
 
-/**
- * @inheritdoc
- */
 class AddSearchCriteriaToContext implements ContextParametersProcessorInterface
 {
     /**
-     * @inheritdoc
+     * {@inheritdoc}
      */
     public function execute(
         ContextParametersInterface $contextParameters
-    ) : ContextParametersInterface {
+    ): ContextParametersInterface {
         $contextParameters->addExtensionAttribute('search_criteria', null);
         return $contextParameters;
     }

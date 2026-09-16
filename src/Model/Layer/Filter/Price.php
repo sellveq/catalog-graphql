@@ -1,54 +1,38 @@
 <?php
+
 /**
- * ScandiPWA - Progressive Web App for Magento
- *
- * Copyright © Scandiweb, Inc. All rights reserved.
+ * @category    ScandiPWA
+ * @package     ScandiPWA_CatalogGraphQl
+ * @copyright   Copyright © Scandiweb, Inc. All rights reserved.
+ * @copyright   Modifications © Selveq. All rights reserved.
+ * @license     OSL-3.0 (Open Software License ("OSL") v. 3.0)
  * See LICENSE for license details.
- *
- * @license OSL-3.0 (Open Software License ("OSL") v. 3.0)
- * @package scandipwa/module-customer-graph-ql
- * @link https://github.com/scandipwa/module-customer-graph-ql
  */
+
 declare(strict_types=1);
 
 namespace ScandiPWA\CatalogGraphQl\Model\Layer\Filter;
 
-use Magento\Store\Model\StoreManagerInterface;
+use Magento\CatalogGraphQl\DataProvider\Product\LayeredNavigation\Formatter\LayerFormatter;
 use Magento\CatalogGraphQl\DataProvider\Product\LayeredNavigation\LayerBuilderInterface;
 use Magento\Framework\Api\Search\AggregationInterface;
 use Magento\Framework\Api\Search\BucketInterface;
-use Magento\CatalogGraphQl\DataProvider\Product\LayeredNavigation\Formatter\LayerFormatter;
+use Magento\Framework\Exception\LocalizedException;
+use Magento\Framework\Exception\NoSuchEntityException;
+use Magento\Store\Model\StoreManagerInterface;
 use ScandiPWA\CatalogGraphQl\Model\Layer\AttributeDataProvider;
 
-/**
- * @inheritdoc
- */
 class Price implements LayerBuilderInterface
 {
     /**
-     * @var StoreManagerInterface
-     */
-    private $storeManager;
-
-    /**
      * @var string
      */
-    const PRICE_BUCKET = 'price_bucket';
-
-    /**
-     * @var LayerFormatter
-     */
-    private $layerFormatter;
-
-    /**
-     * @var AttributeDataProvider
-     */
-    private $attributeDataProvider;
+    public const string PRICE_BUCKET = 'price_bucket';
 
     /**
      * @var array
      */
-    private static $bucketMap = [
+    private static array $bucketMap = [
         self::PRICE_BUCKET => [
             'request_name' => 'price',
             'label' => 'Price'
@@ -57,21 +41,20 @@ class Price implements LayerBuilderInterface
 
     /**
      * @param LayerFormatter $layerFormatter
+     * @param StoreManagerInterface $storeManager
+     * @param AttributeDataProvider $attributeDataProvider
      */
     public function __construct(
-        LayerFormatter $layerFormatter,
-        StoreManagerInterface $storeManager,
-        AttributeDataProvider $attributeDataProvider
-    )
-    {
-        $this->layerFormatter = $layerFormatter;
-        $this->storeManager = $storeManager;
-        $this->attributeDataProvider = $attributeDataProvider;
-    }
+        private readonly LayerFormatter $layerFormatter,
+        private readonly StoreManagerInterface $storeManager,
+        private readonly AttributeDataProvider $attributeDataProvider
+    ) {}
 
     /**
-     * @inheritdoc
+     * {@inheritdoc}
      * @SuppressWarnings(PHPMD.UnusedFormalParameter)
+     * @throws NoSuchEntityException
+     * @throws LocalizedException
      */
     public function build(AggregationInterface $aggregation, ?int $storeId): array
     {
@@ -80,9 +63,11 @@ class Price implements LayerBuilderInterface
             return [];
         }
 
-        // Localize value of the price attribute
+        // core hard-codes the English bucket label, so the store-scoped attribute label wins over it
         $attributeData = $this->attributeDataProvider->getAttributeData('price', $storeId);
-        $attributeLabel = $attributeData['attribute_store_label'] ?? $attributeData['frontend_label'] ?? self::$bucketMap[self::PRICE_BUCKET]['label'];
+        $attributeLabel = $attributeData['attribute_store_label']
+            ?? $attributeData['frontend_label']
+            ?? self::$bucketMap[self::PRICE_BUCKET]['label'];
 
         $result = $this->layerFormatter->buildLayer(
             $attributeLabel,
@@ -90,20 +75,17 @@ class Price implements LayerBuilderInterface
             self::$bucketMap[self::PRICE_BUCKET]['request_name']
         );
 
-        // Gets cuurrent currency rate
+        // buckets come back in base currency, so every boundary is converted before it is formatted
         $currencyRate = $this->storeManager->getStore()->getCurrentCurrencyRate();
 
-        // Loops through-out each price range option
         foreach ($bucket->getValues() as $value) {
             $metrics = $value->getMetrics();
 
-            // Updates to correct currency
             $priceRange = [
                 'from' => $this->getMetricValue($metrics['from'], $currencyRate),
                 'to' => $this->getMetricValue($metrics['to'], $currencyRate)
             ];
 
-            // Builds graph-ql response
             $result['options'][] = $this->layerFormatter->buildItem(
                 $priceRange['from'] . '~' . $priceRange['to'],
                 $metrics['value'],
@@ -115,20 +97,18 @@ class Price implements LayerBuilderInterface
     }
 
     /**
-     * Converts price to correct currency base,
-     * if notehing is set, then changes it to wildcard.
-     *
-     * @param $base
-     * @param $rate
+     * converts price to the correct currency base, or a wildcard when unset
+     * @param mixed $base
+     * @param mixed $rate
      * @return float|int|string
      */
-    private function getMetricValue($base, $rate) {
-        return (!is_null($base) && is_numeric($base)) ? $base * $rate : '*';
+    private function getMetricValue($base, $rate)
+    {
+        return (is_numeric($base)) ? $base * $rate : '*';
     }
 
     /**
-     * Check that bucket contains data
-     *
+     * check that bucket contains data
      * @param BucketInterface|null $bucket
      * @return bool
      */

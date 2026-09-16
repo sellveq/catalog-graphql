@@ -1,52 +1,43 @@
 <?php
+
 /**
- * Copyright © Magento, Inc. All rights reserved.
- * See COPYING.txt for license details.
+ * @category    ScandiPWA
+ * @package     ScandiPWA_CatalogGraphQl
+ * @copyright   Copyright © Magento, Inc. All rights reserved.
+ * @copyright   Modifications © Selveq. All rights reserved.
+ * @license     OSL-3.0 (Open Software License ("OSL") v. 3.0)
+ * See LICENSE for license details.
  */
+
 declare(strict_types=1);
 
 namespace ScandiPWA\CatalogGraphQl\Model\Resolver\Products\DataProvider\Product\CollectionProcessor;
 
-use Magento\Catalog\Api\Data\EavAttributeInterface;
 use Magento\Catalog\Api\Data\ProductAttributeInterface;
 use Magento\Catalog\Model\ResourceModel\Product\Collection;
 use Magento\CatalogGraphQl\Model\Resolver\Products\DataProvider\Product\CollectionProcessorInterface;
 use Magento\Framework\Api\AttributeInterface;
-use Magento\Framework\App\ResourceConnection;
 use Magento\Framework\Api\SearchCriteriaInterface;
+use Magento\Framework\App\ResourceConnection;
 use Magento\GraphQl\Model\Query\ContextInterface;
 
-/**
- * Adds passed in attributes to product collection results
- *
- * {@inheritdoc}
- */
 class AttributeProcessor implements CollectionProcessorInterface
 {
-    /**
-     * Identifier for request type
-     */
-    const VARIANT_PLP_FIELD = 'variant_plp';
+    /** Identifier for request type */
+    public const string VARIANT_PLP_FIELD = 'variant_plp';
 
     /**
-     * @var ResourceConnection
-     */
-    protected $resourceConnection;
-
-    /**
-     * Existing product entity attribute codes
+     * existing product entity attribute codes
      * @var array
      */
     protected $validAttributeCodes = [];
 
     /**
-     * AttributeProcessor constructor.
      * @param ResourceConnection $resourceConnection
      */
-    public function __construct(ResourceConnection $resourceConnection)
-    {
-        $this->resourceConnection = $resourceConnection;
-    }
+    public function __construct(
+        private readonly ResourceConnection $resourceConnection
+    ) {}
 
     /**
      * {@inheritdoc}
@@ -55,13 +46,10 @@ class AttributeProcessor implements CollectionProcessorInterface
         Collection $collection,
         SearchCriteriaInterface $searchCriteria,
         array $attributeNames,
-        ContextInterface $context = null
+        ?ContextInterface $context = null
     ): Collection {
         if (in_array(self::VARIANT_PLP_FIELD, $attributeNames)) {
-            // for PLP variant load, attribute post processor is skipped
-            // however, all visible on product list attribute data is still needed
-            // what ends up being skipped is values such as attribute group data, swatches, etc
-            // wildcard addition in this case seems to be the fastest
+            // the PLP variant load skips the attribute post processor, so the wildcard is fastest here
             $collection->addAttributeToSelect('*');
 
             return $collection;
@@ -77,15 +65,10 @@ class AttributeProcessor implements CollectionProcessorInterface
      */
     public function processRegularCollection(Collection $collection, array $attributeNames): Collection
     {
-        // $attributeNames is a list of all queried fields, rather than just attributes
-        // load a list of valid attribute codes to skip individual attempts to load an attribute by non-existing key later
+        // $attributeNames lists every queried field, not just attributes
         $this->loadValidAttributeCodes();
 
-        // returning individual addAttributeToSelect calls
-        // while each of these runs a mysql query
-        // it is still faster than adding all attributes to select
-        // since that adds default+store-specific joins for each attribute in collection afterLoad
-        // previous addAttibuteToSelect('*') simply transferred the bulk of load to a different point in time
+        // individual calls beat a wildcard, which joins every attribute on collection afterLoad
         foreach ($attributeNames as $name) {
             if (array_key_exists($name, $this->validAttributeCodes)) {
                 $collection->addAttributeToSelect($name);
@@ -96,9 +79,7 @@ class AttributeProcessor implements CollectionProcessorInterface
     }
 
     /**
-     * Loads valid attribute code names
-     * Using select rather than collection or repository,
-     * because EAV Attribute collection or repository loads a lot of unnecessary data and takes 20-30 times longer
+     * load valid attribute codes via a raw select; the EAV collection is 20-30x slower
      * @return array
      */
     protected function loadValidAttributeCodes(): array

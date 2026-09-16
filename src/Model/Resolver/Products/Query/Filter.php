@@ -1,8 +1,14 @@
 <?php
+
 /**
- * Copyright © Magento, Inc. All rights reserved.
- * See COPYING.txt for license details.
+ * @category    ScandiPWA
+ * @package     ScandiPWA_CatalogGraphQl
+ * @copyright   Copyright © Magento, Inc. All rights reserved.
+ * @copyright   Modifications © Selveq. All rights reserved.
+ * @license     OSL-3.0 (Open Software License ("OSL") v. 3.0)
+ * See LICENSE for license details.
  */
+
 declare(strict_types=1);
 
 namespace ScandiPWA\CatalogGraphQl\Model\Resolver\Products\Query;
@@ -22,37 +28,8 @@ use Magento\Search\Model\Query;
 use Magento\Store\Model\ScopeInterface;
 use ScandiPWA\Performance\Model\Resolver\Products\DataPostProcessor;
 
-class Filter extends MagentoFilter {
-    /**
-     * @var SearchResultFactory
-     */
-    private $searchResultFactory;
-
-    /**
-     * @var ProductProvider
-     */
-    private $productDataProvider;
-
-    /**
-     * FieldSelection
-     */
-    private $fieldSelection;
-
-    /**
-     * @var SearchCriteriaBuilder
-     */
-    private $searchCriteriaBuilder;
-
-    /**
-     * @var ScopeConfigInterface
-     */
-    private $scopeConfig;
-
-    /**
-     * @var DataPostProcessor
-     */
-    protected $productPostProcessor;
-
+class Filter extends MagentoFilter
+{
     /**
      * @param SearchResultFactory $searchResultFactory
      * @param ProductProvider $productDataProvider
@@ -62,12 +39,12 @@ class Filter extends MagentoFilter {
      * @param DataPostProcessor $productPostProcessor
      */
     public function __construct(
-        SearchResultFactory $searchResultFactory,
-        ProductProvider $productDataProvider,
-        FieldSelection $fieldSelection,
-        SearchCriteriaBuilder $searchCriteriaBuilder,
-        ScopeConfigInterface $scopeConfig,
-        DataPostProcessor $productPostProcessor
+        private readonly SearchResultFactory $searchResultFactory,
+        private readonly ProductProvider $productDataProvider,
+        private readonly FieldSelection $fieldSelection,
+        private readonly SearchCriteriaBuilder $searchCriteriaBuilder,
+        private readonly ScopeConfigInterface $scopeConfig,
+        private readonly DataPostProcessor $productPostProcessor
     ) {
         parent::__construct(
             $searchResultFactory,
@@ -76,19 +53,10 @@ class Filter extends MagentoFilter {
             $searchCriteriaBuilder,
             $scopeConfig
         );
-
-        $this->searchResultFactory = $searchResultFactory;
-        $this->productDataProvider = $productDataProvider;
-        $this->fieldSelection = $fieldSelection;
-        $this->searchCriteriaBuilder = $searchCriteriaBuilder;
-        $this->scopeConfig = $scopeConfig;
-
-        $this->productPostProcessor = $productPostProcessor;
     }
 
     /**
-     * Filter catalog product data based off given search criteria
-     *
+     * filter catalog product data based off given search criteria
      * @param array $args
      * @param ResolveInfo $info
      * @param ContextInterface $context
@@ -104,7 +72,7 @@ class Filter extends MagentoFilter {
         try {
             $searchCriteria = $this->buildSearchCriteria($args, $info);
             $searchResults = $this->productDataProvider->getList($searchCriteria, $fields, false, false, $context);
-        } catch (InputException $e) {
+        } catch (InputException) {
             return $this->createEmptyResult($args);
         }
 
@@ -133,11 +101,11 @@ class Filter extends MagentoFilter {
     }
 
     /**
-     * Build search criteria from query input args
-     *
+     * build search criteria from query input args
      * @param array $args
      * @param ResolveInfo $info
      * @return SearchCriteriaInterface
+     * @throws InputException
      */
     private function buildSearchCriteria(array $args, ResolveInfo $info): SearchCriteriaInterface
     {
@@ -153,8 +121,7 @@ class Filter extends MagentoFilter {
     }
 
     /**
-     * Reformat filters
-     *
+     * reformat filters
      * @param array $filters
      * @return array
      * @throws InputException
@@ -172,7 +139,7 @@ class Filter extends MagentoFilter {
                 if ($condition === 'match') {
                     // reformat 'match' filter so MySQL filtering behaves like SearchAPI filtering
                     $condition = 'like';
-                    $value = str_replace('%', '', trim($value));
+                    $value = $value !== null ? str_replace('%', '', trim($value)) : '';
                     if (strlen($value) < $minimumQueryLength) {
                         throw new InputException(__('Invalid match filter'));
                     }
@@ -186,10 +153,7 @@ class Filter extends MagentoFilter {
     }
 
     /**
-     * Return and empty SearchResult object
-     *
-     * Used for handling exceptions gracefully
-     *
+     * return an empty SearchResult object, used to handle exceptions gracefully
      * @param array $args
      * @return SearchResult
      */

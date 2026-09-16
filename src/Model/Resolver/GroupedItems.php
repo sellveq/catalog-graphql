@@ -1,85 +1,61 @@
 <?php
+
 /**
  * @category    ScandiPWA
  * @package     ScandiPWA_CatalogGraphQl
- * @author      Alfreds Genkins <info@scandiweb.com>
- * @copyright   Copyright (c) 2019 Scandiweb, Ltd (https://scandiweb.com)
+ * @copyright   Copyright © 2019 Scandiweb, Ltd (https://scandiweb.com)
+ * @copyright   Modifications © Selveq. All rights reserved.
+ * @license     OSL-3.0 (Open Software License ("OSL") v. 3.0)
+ * See LICENSE for license details.
  */
 
 declare(strict_types=1);
 
 namespace ScandiPWA\CatalogGraphQl\Model\Resolver;
 
+use Magento\Catalog\Api\Data\ProductLinkInterface;
 use Magento\CatalogGraphQl\Model\Resolver\Products\DataProvider\Deferred\Product;
 use Magento\Framework\Api\SearchCriteriaBuilder;
 use Magento\Framework\Exception\LocalizedException;
 use Magento\Framework\GraphQl\Config\Element\Field;
 use Magento\Framework\GraphQl\Schema\Type\ResolveInfo;
-use Magento\GroupedProduct\Model\Product\Type\Grouped as GroupedAlias;
-use Magento\GroupedProduct\Model\ResourceModel\Product\Link;
-use ScandiPWA\Performance\Model\Resolver\ResolveInfoFieldsTrait;
 use Magento\GroupedProduct\Model\Product\Initialization\Helper\ProductLinks\Plugin\Grouped;
-use Magento\Catalog\Api\Data\ProductLinkInterface;
-use ScandiPWA\Performance\Model\Resolver\Products\DataPostProcessor;
-use ScandiPWA\CatalogGraphQl\Model\Resolver\Products\DataProvider\Product as ProductDataProvider;
-
+use Magento\GroupedProduct\Model\Product\Type\Grouped as GroupedAlias;
 use Magento\GroupedProductGraphQl\Model\Resolver\GroupedItems as MagentoGroupedItems;
+use ScandiPWA\CatalogGraphQl\Model\Resolver\Products\DataProvider\Product as ProductDataProvider;
+use ScandiPWA\Performance\Model\Resolver\Products\DataPostProcessor;
+use ScandiPWA\Performance\Model\Resolver\ResolveInfoFieldsTrait;
 
-/**
- * Class ConfigurableVariant
- *
- * @package ScandiPWA\CatalogGraphQl\Model\Resolver
- */
 class GroupedItems extends MagentoGroupedItems
 {
     use ResolveInfoFieldsTrait;
 
     /**
-     * @var SearchCriteriaBuilder
+     * @param SearchCriteriaBuilder $searchCriteriaBuilder
+     * @param DataPostProcessor $postProcessor
+     * @param ProductDataProvider $productDataProvider
+     * @param Product $productResolver
+     * @param GroupedAlias $grouped
      */
-    protected $searchCriteriaBuilder;
-
-    /**
-     * @var DataPostProcessor
-     */
-    protected $postProcessor;
-
-    /**
-     * @var ProductDataProvider
-     */
-    protected $productDataProvider;
-
-    /**
-     * @var GroupedAlias
-     */
-    protected $grouped;
-
     public function __construct(
-        SearchCriteriaBuilder $searchCriteriaBuilder,
-        DataPostProcessor $postProcessor,
-        ProductDataProvider $productDataProvider,
+        private readonly SearchCriteriaBuilder $searchCriteriaBuilder,
+        private readonly DataPostProcessor $postProcessor,
+        private readonly ProductDataProvider $productDataProvider,
         Product $productResolver,
-        GroupedAlias $grouped
+        private readonly GroupedAlias $grouped
     ) {
-        parent::__construct(
-            $productResolver
-        );
-
-        $this->searchCriteriaBuilder = $searchCriteriaBuilder;
-        $this->postProcessor = $postProcessor;
-        $this->productDataProvider = $productDataProvider;
-        $this->grouped = $grouped;
+        parent::__construct($productResolver);
     }
 
     /**
-     * @inheritdoc
+     * {@inheritdoc}
      */
     public function resolve(
         Field $field,
         $context,
         ResolveInfo $info,
-        array $value = null,
-        array $args = null
+        ?array $value = null,
+        ?array $args = null
     ) {
         if (!isset($value['model'])) {
             throw new LocalizedException(__('"model" value should be specified'));
@@ -90,7 +66,7 @@ class GroupedItems extends MagentoGroupedItems
         $result = [];
         $productModel = $value['model'];
 
-        // This fix allows to request min / max price and grouped items
+        // the associated-products cache is keyed per request, so a price query already filled it with partial data
         $this->grouped->flushAssociatedProductsCache($productModel);
         $links = $productModel->getProductLinks();
 
@@ -103,7 +79,7 @@ class GroupedItems extends MagentoGroupedItems
             $productSKU = $link->getLinkedProductSku();
 
             $itemData[$productSKU] = [
-                'position' => (int) $link->getPosition(),
+                'position' => (int)$link->getPosition(),
                 'qty' => $link->getExtensionAttributes()->getQty(),
                 'sku' => $productSKU
             ];

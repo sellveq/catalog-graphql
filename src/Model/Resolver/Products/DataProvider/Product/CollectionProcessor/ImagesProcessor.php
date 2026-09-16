@@ -1,8 +1,14 @@
 <?php
+
 /**
- * Copyright © Magento, Inc. All rights reserved.
- * See COPYING.txt for license details.
+ * @category    ScandiPWA
+ * @package     ScandiPWA_CatalogGraphQl
+ * @copyright   Copyright © Magento, Inc. All rights reserved.
+ * @copyright   Modifications © Selveq. All rights reserved.
+ * @license     OSL-3.0 (Open Software License ("OSL") v. 3.0)
+ * See LICENSE for license details.
  */
+
 declare(strict_types=1);
 
 namespace ScandiPWA\CatalogGraphQl\Model\Resolver\Products\DataProvider\Product\CollectionProcessor;
@@ -13,36 +19,23 @@ use Magento\CatalogGraphQl\Model\Resolver\Products\DataProvider\Product\Collecti
 use Magento\Framework\Api\SearchCriteriaInterface;
 use Magento\GraphQl\Model\Query\ContextInterface;
 
-/**
- * Adds passed in attributes to product collection results
- *
- * {@inheritdoc}
- */
 class ImagesProcessor implements CollectionProcessorInterface
 {
     /**
-     * @var MediaConfig
-     */
-    protected $mediaConfig;
-
-    /**
-     * ImagesProcessor constructor.
      * @param MediaConfig $mediaConfig
      */
     public function __construct(
-        MediaConfig $mediaConfig
-    ) {
-        $this->mediaConfig = $mediaConfig;
-    }
+        private readonly MediaConfig $mediaConfig
+    ) {}
 
     /**
-     * @inheritdoc
+     * {@inheritdoc}
      */
     public function process(
         Collection $collection,
         SearchCriteriaInterface $searchCriteria,
         array $attributeNames,
-        ContextInterface $context = null
+        ?ContextInterface $context = null
     ): Collection {
         $mediaAttributes = $this->mediaConfig->getMediaAttributeCodes();
 

@@ -1,53 +1,45 @@
 <?php
+
 /**
- * ScandiPWA_CatalogGraphQl
- *
  * @category    ScandiPWA
  * @package     ScandiPWA_CatalogGraphQl
- * @author      Alfreds Genkins <info@scandipwa.com>
- * @copyright   Copyright (c) 2018 Scandiweb, Ltd (https://scandiweb.com)
+ * @copyright   Copyright © 2018 Scandiweb, Ltd (https://scandiweb.com)
+ * @copyright   Modifications © Selveq. All rights reserved.
+ * @license     OSL-3.0 (Open Software License ("OSL") v. 3.0)
+ * See LICENSE for license details.
  */
 
 declare(strict_types=1);
 
 namespace ScandiPWA\CatalogGraphQl\Plugin;
 
+use Magento\Catalog\Api\Data\CategoryInterface;
 use Magento\Catalog\Model\Category as CoreCategory;
-use  Magento\Catalog\Model\ResourceModel\Category as CoreResourceCategory;
-/**
- * Class Category
- */
-class Category {
-    /**
-     * @var CoreResourceCategory
-     */
-    protected $resource;
+use Magento\Catalog\Model\ResourceModel\Category as CoreResourceCategory;
 
+class Category
+{
     /**
-     * Category constructor.
      * @param CoreResourceCategory $resource
      */
     public function __construct(
-        CoreResourceCategory $resource
-    ) {
-        $this->resource = $resource;
-    }
+        private readonly CoreResourceCategory $resource
+    ) {}
 
     /**
      * @param CoreCategory $category
      * @param callable $next
      * @return mixed
-     * @throws \Magento\Framework\Exception\LocalizedException
      */
     public function aroundGetProductCount(
         CoreCategory $category,
         callable $next
     ) {
-        if (!$category->hasData(CoreCategory::KEY_PRODUCT_COUNT)) {
+        if (!$category->hasData(CategoryInterface::KEY_PRODUCT_COUNT)) {
             $count = $this->resource->getProductCount($category);
-            $category->setData(CoreCategory::KEY_PRODUCT_COUNT, $count);
+            $category->setData(CategoryInterface::KEY_PRODUCT_COUNT, $count);
         }
 
-        return $category->getData(CoreCategory::KEY_PRODUCT_COUNT);
+        return $category->getData(CategoryInterface::KEY_PRODUCT_COUNT);
     }
 }

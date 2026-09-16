@@ -1,81 +1,61 @@
 <?php
+
 /**
- * ScandiPWA_CatalogGraphQl
- *
  * @category    ScandiPWA
  * @package     ScandiPWA_CatalogGraphQl
- * @author      <info@scandiweb.com>
- * @copyright   Copyright (c) 2021 Scandiweb, Ltd (https://scandiweb.com)
+ * @copyright   Copyright © 2021 Scandiweb, Ltd (https://scandiweb.com)
+ * @copyright   Modifications © Selveq. All rights reserved.
+ * @license     OSL-3.0 (Open Software License ("OSL") v. 3.0)
+ * See LICENSE for license details.
  */
+
 declare(strict_types=1);
 
 namespace ScandiPWA\CatalogGraphQl\Model\Resolver\Product;
 
-use Magento\Catalog\Pricing\Price\BasePrice;
-use Magento\Framework\Exception\LocalizedException;
-use Magento\Framework\GraphQl\Query\Resolver\ContextInterface;
-use Magento\Framework\GraphQl\Schema\Type\ResolveInfo;
-use Magento\Framework\Pricing\PriceCurrencyInterface;
 use Magento\Catalog\Helper\Data as CatalogData;
 use Magento\Catalog\Model\Product;
 use Magento\Catalog\Model\Product\Option;
-use Magento\CatalogGraphQl\Model\Resolver\Product\Options as CoreOptions;
-use Magento\Framework\GraphQl\Config\Element\Field;
-use Magento\Framework\GraphQl\Query\Uid;
-use Magento\Framework\App\ObjectManager;
 use Magento\Catalog\Model\Product\Option\Value as OptionValue;
 use Magento\Catalog\Pricing\Price\CalculateCustomOptionCatalogRule;
+use Magento\CatalogGraphQl\Model\Resolver\Product\Options as CoreOptions;
+use Magento\Framework\App\ObjectManager;
+use Magento\Framework\Exception\LocalizedException;
+use Magento\Framework\GraphQl\Config\Element\Field;
+use Magento\Framework\GraphQl\Query\Uid;
+use Magento\Framework\GraphQl\Schema\Type\ResolveInfo;
+use Magento\Framework\Pricing\PriceCurrencyInterface;
 
-/**
- * Format a product's option information to conform to GraphQL schema representation
- */
 class Options extends CoreOptions
 {
-    protected const OPTION_TYPE = 'custom-option';
-    protected const DYNAMIC_TYPE = 'DYNAMIC';
-    
-    /**
-     * @var PriceCurrencyInterface
-     */
-    protected PriceCurrencyInterface $priceCurrency;
+    protected const string OPTION_TYPE = 'custom-option';
+    protected const string DYNAMIC_TYPE = 'DYNAMIC';
 
     /**
-     * @var CatalogData
+     * @var Uid
      */
-    protected $catalogData;
-
-    /** @var Uid */
     protected $uidEncoder;
-
-    /**
-     * @var CalculateCustomOptionCatalogRule
-     */
-    protected $calculateCustomOptionCatalogRule;
 
     /**
      * @param PriceCurrencyInterface $priceCurrency
      * @param CatalogData $catalogData
+     * @param CalculateCustomOptionCatalogRule $calculateCustomOptionCatalogRule
      * @param Uid|null $uidEncoder
-     * @param CalculateCustomOptionCatalogRule|null $calculateCustomOptionCatalogRule
      */
     public function __construct(
-        PriceCurrencyInterface $priceCurrency,
-        CatalogData $catalogData,
-        Uid $uidEncoder = null,
-        CalculateCustomOptionCatalogRule $calculateCustomOptionCatalogRule
-    )
-    {
-        $this->calculateCustomOptionCatalogRule = $calculateCustomOptionCatalogRule;
-        $this->priceCurrency = $priceCurrency;
-        $this->catalogData = $catalogData;
+        private readonly PriceCurrencyInterface $priceCurrency,
+        private readonly CatalogData $catalogData,
+        private readonly CalculateCustomOptionCatalogRule $calculateCustomOptionCatalogRule,
+        ?Uid $uidEncoder = null
+    ) {
         $this->uidEncoder = $uidEncoder ?: ObjectManager::getInstance()
             ->get(Uid::class);
     }
 
     /**
-     * @param $price
-     * @param $isPercent
-     * @param $product
+     * @param mixed $price
+     * @param mixed $isPercent
+     * @param mixed $product
      * @return float
      */
     public function getPrice($price, $isPercent, $product)
@@ -86,7 +66,7 @@ class Options extends CoreOptions
             $isPercent
         );
 
-        if ($catalogPriceValue!==null) {
+        if ($catalogPriceValue !== null) {
             return $catalogPriceValue;
         }
 
@@ -94,12 +74,14 @@ class Options extends CoreOptions
     }
 
     /**
-     * @param array $optonArray
-     * @param $optionValue
-     * @param $product
-     * @param $currentCurrency
+     * @param array $optionArray
+     * @param mixed $optionValue
+     * @param mixed $product
+     * @param string $currentCurrency
+     * @return void
      */
-    public function updateOptionPriceData(array &$optionArray, $optionValue, $product, $currentCurrency) {
+    public function updateOptionPriceData(array &$optionArray, $optionValue, $product, $currentCurrency)
+    {
         $optionArray['price_type'] = $optionValue->getPriceType() !== null
             ? strtoupper($optionValue->getPriceType())
             : self::DYNAMIC_TYPE;
@@ -112,7 +94,7 @@ class Options extends CoreOptions
         $selectionPrice = $optionArray['price'];
         $optionArray['currency'] = $currentCurrency;
 
-        // Calculate price including tax for option value
+        // a percentage option prices off the parent final price, a fixed one off its own value
         $taxablePrice = strtolower($optionValue->getPriceType()) == OptionValue::TYPE_PERCENT
             ? $product->getFinalPrice() * $selectionPrice / 100
             : $selectionPrice;
@@ -127,24 +109,15 @@ class Options extends CoreOptions
     }
 
     /**
-     * @inheritdoc
-     *
-     * Format product's option data to conform to GraphQL schema
-     *
-     * @param \Magento\Framework\GraphQl\Config\Element\Field $field
-     * @param ContextInterface $context
-     * @param ResolveInfo $info
-     * @param array|null $value
-     * @param array|null $args
-     * @throws \Exception
-     * @return null|array
+     * format product's option data to conform to GraphQL schema
+     * {@inheritdoc}
      */
     public function resolve(
         Field $field,
         $context,
         ResolveInfo $info,
-        array $value = null,
-        array $args = null
+        ?array $value = null,
+        ?array $args = null
     ) {
         if (!isset($value['model'])) {
             throw new LocalizedException(__('"model" value should be specified'));
@@ -173,7 +146,10 @@ class Options extends CoreOptions
                 foreach ($values as $valueKey => $optionValue) {
                     $options[$key]['value'][$valueKey] = $optionValue->getData();
                     $this->updateOptionPriceData(
-                        $options[$key]['value'][$valueKey], $optionValue, $product, $currentCurrency
+                        $options[$key]['value'][$valueKey],
+                        $optionValue,
+                        $product,
+                        $currentCurrency
                     );
                 }
 

@@ -1,67 +1,42 @@
 <?php
+
 /**
  * @category    ScandiPWA
- * @package     ScandiPWA_Performance
- * @author      Alfreds Genkins <info@scandiweb.com>
- * @copyright   Copyright (c) 2019 Scandiweb, Ltd (https://scandiweb.com)
+ * @package     ScandiPWA_CatalogGraphQl
+ * @copyright   Copyright © 2019 Scandiweb, Ltd (https://scandiweb.com)
+ * @copyright   Modifications © Selveq. All rights reserved.
+ * @license     OSL-3.0 (Open Software License ("OSL") v. 3.0)
+ * See LICENSE for license details.
  */
 
 declare(strict_types=1);
 
 namespace ScandiPWA\CatalogGraphQl\Model\Resolver;
 
-use Magento\Framework\GraphQl\Schema\Type\ResolveInfo;
-use Magento\CatalogGraphQl\Model\Resolver\Products\DataProvider\Deferred\Product as ProductDataProvider;
 use Magento\Framework\GraphQl\Config\Element\Field;
 use Magento\Framework\GraphQl\Exception\GraphQlInputException;
-use Magento\Framework\GraphQl\Query\FieldTranslator;
 use Magento\Framework\GraphQl\Query\Resolver\ValueFactory;
 use Magento\Framework\GraphQl\Query\ResolverInterface;
+use Magento\Framework\GraphQl\Schema\Type\ResolveInfo;
 
-/**
- * @inheritdoc
- */
 class Product implements ResolverInterface
 {
     /**
-     * @var ProductDataProvider
-     */
-    protected $productDataProvider;
-
-    /**
-     * @var ValueFactory
-     */
-    protected $valueFactory;
-
-    /**
-     * @var FieldTranslator
-     */
-    protected $fieldTranslator;
-
-    /**
-     * @param ProductDataProvider $productDataProvider
      * @param ValueFactory $valueFactory
-     * @param FieldTranslator $fieldTranslator
      */
     public function __construct(
-        ProductDataProvider $productDataProvider,
-        ValueFactory $valueFactory,
-        FieldTranslator $fieldTranslator
-    ) {
-        $this->productDataProvider = $productDataProvider;
-        $this->valueFactory = $valueFactory;
-        $this->fieldTranslator = $fieldTranslator;
-    }
+        private readonly ValueFactory $valueFactory
+    ) {}
 
     /**
-     * @inheritdoc
+     * {@inheritdoc}
      */
     public function resolve(
         Field $field,
         $context,
         ResolveInfo $info,
-        array $value = null,
-        array $args = null
+        ?array $value = null,
+        ?array $args = null
     ) {
         if (!isset($value['sku'])) {
             throw new GraphQlInputException(__('No child sku found for product link.'));

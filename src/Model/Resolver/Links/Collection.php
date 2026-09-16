@@ -1,73 +1,56 @@
 <?php
+
 /**
- * ScandiPWA_CatalogGraphQl
- *
  * @category    ScandiPWA
  * @package     ScandiPWA_CatalogGraphQl
- * @author      <info@scandiweb.com>
- * @copyright   Copyright (c) 2018 Scandiweb, Ltd (https://scandiweb.com)
+ * @copyright   Copyright © 2018 Scandiweb, Ltd (https://scandiweb.com)
+ * @copyright   Modifications © Selveq. All rights reserved.
+ * @license     OSL-3.0 (Open Software License ("OSL") v. 3.0)
+ * See LICENSE for license details.
  */
 
 declare(strict_types=1);
 
 namespace ScandiPWA\CatalogGraphQl\Model\Resolver\Links;
 
-use Magento\Bundle\Model\Selection;
 use Magento\Bundle\Model\ResourceModel\Selection\CollectionFactory;
-use Magento\Bundle\Model\ResourceModel\Selection\Collection as LinkCollection;
+use Magento\Bundle\Model\Selection;
 use Magento\Catalog\Model\ResourceModel\Product\CollectionFactory as ProductCollectionFactory;
 use Magento\CatalogGraphQl\Model\Resolver\Products\DataProvider\Product\CollectionProcessorInterface;
 use Magento\Framework\Api\SearchCriteriaBuilder;
 use Magento\Framework\Exception\RuntimeException;
 use Magento\Framework\GraphQl\Query\EnumLookup;
+use Magento\Framework\GraphQl\Schema\Type\ResolveInfo;
 use ScandiPWA\Performance\Model\Resolver\Products\CollectionPostProcessor;
 use ScandiPWA\Performance\Model\Resolver\Products\DataPostProcessor;
 use ScandiPWA\Performance\Model\Resolver\ResolveInfoFieldsTrait;
 use Zend_Db_Select_Exception;
 
-/**
- * Collection to fetch link data at resolution time.
- */
 class Collection
 {
     use ResolveInfoFieldsTrait;
 
-    /** @var CollectionFactory */
-    protected $linkCollectionFactory;
-
-    /** @var EnumLookup */
-    protected $enumLookup;
-
-    /** @var int[] */
+    /**
+     * @var int[]
+     */
     protected $optionIds = [];
 
-    /** @var int[] */
+    /**
+     * @var int[]
+     */
     protected $parentIds = [];
 
-    /** @var array */
+    /**
+     * @var array
+     */
     protected $links = [];
 
-    /** @var $resolveInfo */
+    /**
+     * @var ResolveInfo|null
+     */
     protected $resolveInfo;
 
-    /** @var SearchCriteriaBuilder */
-    protected $searchCriteriaBuilder;
-
-    /** @var ProductCollectionFactory */
-    protected $collectionFactory;
-
-    /** @var CollectionProcessorInterface  */
-    protected $collectionProcessor;
-
-    /** @var CollectionPostProcessor  */
-    protected $collectionPostProcessor;
-
-    /** @var DataPostProcessor  */
-    protected $dataPostProcessor;
-
     /**
-     * Collection constructor.
-     *
      * @param CollectionFactory $linkCollectionFactory
      * @param EnumLookup $enumLookup
      * @param SearchCriteriaBuilder $searchCriteriaBuilder
@@ -77,31 +60,22 @@ class Collection
      * @param DataPostProcessor $dataPostProcessor
      */
     public function __construct(
-        CollectionFactory $linkCollectionFactory,
-        EnumLookup $enumLookup,
-        SearchCriteriaBuilder $searchCriteriaBuilder,
-        ProductCollectionFactory $collectionFactory,
-        CollectionProcessorInterface $collectionProcessor,
-        CollectionPostProcessor $collectionPostProcessor,
-        DataPostProcessor $dataPostProcessor
-    ) {
-        $this->linkCollectionFactory = $linkCollectionFactory;
-        $this->enumLookup = $enumLookup;
-        $this->searchCriteriaBuilder = $searchCriteriaBuilder;
-        $this->collectionFactory = $collectionFactory;
-        $this->collectionProcessor = $collectionProcessor;
-        $this->collectionPostProcessor = $collectionPostProcessor;
-        $this->dataPostProcessor = $dataPostProcessor;
-    }
+        private readonly CollectionFactory $linkCollectionFactory,
+        private readonly EnumLookup $enumLookup,
+        private readonly SearchCriteriaBuilder $searchCriteriaBuilder,
+        private readonly ProductCollectionFactory $collectionFactory,
+        private readonly CollectionProcessorInterface $collectionProcessor,
+        private readonly CollectionPostProcessor $collectionPostProcessor,
+        private readonly DataPostProcessor $dataPostProcessor
+    ) {}
 
     /**
-     * Add option and id filter pair to filter for fetch.
-     *
+     * add option and id filter pair to filter for fetch.
      * @param int $optionId
      * @param int $parentId
      * @return void
      */
-    public function addIdFilters(int $optionId, int $parentId) : void
+    public function addIdFilters(int $optionId, int $parentId): void
     {
         if (!in_array($optionId, $this->optionIds)) {
             $this->optionIds[] = $optionId;
@@ -113,21 +87,22 @@ class Collection
     }
 
     /**
-     * @param $resolveInfo
+     * @param ResolveInfo $resolveInfo
+     * @return void
      */
-    public function addResolveInfo($resolveInfo) {
+    public function addResolveInfo($resolveInfo)
+    {
         $this->resolveInfo = $resolveInfo;
     }
 
     /**
-     * Retrieve links for passed in option id.
-     *
+     * retrieve links for passed in option id.
      * @param int $optionId
      * @return array
      * @throws RuntimeException
      * @throws Zend_Db_Select_Exception
      */
-    public function getLinksForOptionId(int $optionId) : array
+    public function getLinksForOptionId(int $optionId): array
     {
         $linksList = $this->fetch();
 
@@ -139,7 +114,7 @@ class Collection
     }
 
     /**
-     * @param $productIds
+     * @param mixed $productIds
      * @return array
      */
     protected function getProductMap($productIds): array
@@ -177,19 +152,17 @@ class Collection
     }
 
     /**
-     * Fetch link data and return in array format. Keys for links will be their option Ids.
-     *
+     * fetch link data and return in array format. Keys for links will be their option Ids.
      * @return array
      * @throws RuntimeException
      * @throws Zend_Db_Select_Exception
      */
-    private function fetch() : array
+    private function fetch(): array
     {
         if (empty($this->optionIds) || empty($this->parentIds) || !empty($this->links)) {
             return $this->links;
         }
 
-        /** @var LinkCollection $linkCollection */
         $linkCollection = $this->linkCollectionFactory->create();
         $linkCollection->setOptionIdsFilter($this->optionIds);
         $field = 'parent_product_id';
@@ -215,7 +188,7 @@ class Collection
         foreach ($links as $link) {
             $data = $link->getData();
             $productId = $link->getProductId();
-            $product = isset($productMap[$productId]) ? $productMap[$productId] : null;
+            $product = $productMap[$productId] ?? null;
             $formattedLink = [
                 'price' => $link->getSelectionPriceValue(),
                 'position' => $link->getPosition(),

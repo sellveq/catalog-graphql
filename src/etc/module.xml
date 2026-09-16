@@ -1,31 +1,49 @@
 <?xml version="1.0"?>
+
 <!--
 /**
- * ScandiPWA - Progressive Web App for Magento
- *
- * Copyright © Scandiweb, Inc. All rights reserved.
+ * @category    ScandiPWA
+ * @package     ScandiPWA_CatalogGraphQl
+ * @copyright   Copyright © Scandiweb, Inc. All rights reserved.
+ * @copyright   Modifications © Selveq. All rights reserved.
+ * @license     OSL-3.0 (Open Software License ("OSL") v. 3.0)
  * See LICENSE for license details.
- *
- * @license OSL-3.0 (Open Software License ("OSL") v. 3.0)
  */
 -->
+
 <config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-        xsi:noNamespaceSchemaLocation="urn:magento:framework:Module/etc/module.xsd">
+    xsi:noNamespaceSchemaLocation="urn:magento:framework:Module/etc/module.xsd">
     <module name="ScandiPWA_CatalogGraphQl">
         <sequence>
-            <module name="Magento_Eav"/>
-            <module name="Magento_Catalog"/>
-            <module name="Magento_Widget"/>
-            <module name="Magento_Rule"/>
-            <module name="Magento_GraphQl"/>
-            <module name="Magento_Store"/>
-            <module name="Magento_CatalogGraphQl"/>
-            <module name="Magento_Elasticsearch"/>
-            <module name="Magento_ConfigurableProductGraphQl"/>
-            <module name="Magento_BundleGraphQl"/>
-            <module name="Magento_Swatches"/>
-            <module name="Magento_CatalogInventory"/>
-            <module name="Magento_CatalogWidget"/>
+            <module name="Magento_Eav" />
+            <module name="Magento_Catalog" />
+            <module name="Magento_Widget" />
+            <module name="Magento_Rule" />
+            <module name="Magento_GraphQl" />
+            <module name="Magento_Store" />
+            <module name="Magento_CatalogGraphQl" />
+            <module name="Magento_Elasticsearch" />
+            <module name="Magento_ConfigurableProductGraphQl" />
+            <module name="Magento_BundleGraphQl" />
+            <module name="Magento_DownloadableGraphQl" />
+            <module name="Magento_GroupedProduct" />
+            <module name="Magento_GroupedProductGraphQl" />
+            <module name="Magento_Swatches" />
+            <module name="Magento_CatalogInventory" />
+            <module name="Magento_CatalogWidget" />
+            <module name="Magento_Cms" />
+            <module name="Magento_Bundle" />
+            <module name="Magento_CatalogSearch" />
+            <module name="Magento_CatalogUrlRewrite" />
+            <module name="Magento_ConfigurableProduct" />
+            <module name="Magento_Customer" />
+            <module name="Magento_Directory" />
+            <module name="Magento_Downloadable" />
+            <module name="Magento_Quote" />
+            <module name="Magento_Search" />
+            <module name="Magento_Webapi" />
+            <module name="ScandiPWA_Performance" />
+            <module name="ScandiPWA_QuoteGraphQl" />
         </sequence>
     </module>
 </config>

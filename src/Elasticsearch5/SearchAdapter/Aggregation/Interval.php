@@ -1,63 +1,29 @@
 <?php
+
 /**
- * Copyright © Magento, Inc. All rights reserved.
- * See COPYING.txt for license details.
+ * @category    ScandiPWA
+ * @package     ScandiPWA_CatalogGraphQl
+ * @copyright   Copyright © Magento, Inc. All rights reserved.
+ * @copyright   Modifications © Selveq. All rights reserved.
+ * @license     OSL-3.0 (Open Software License ("OSL") v. 3.0)
+ * See LICENSE for license details.
  */
+
 declare(strict_types=1);
 
 namespace ScandiPWA\CatalogGraphQl\Elasticsearch5\SearchAdapter\Aggregation;
 
-use Magento\Elasticsearch\SearchAdapter\ConnectionManager;
-use Magento\Elasticsearch\Model\Adapter\FieldMapperInterface;
-use Magento\Elasticsearch\Model\Config;
-use Magento\Elasticsearch\SearchAdapter\SearchIndexNameResolver;
 use Magento\CatalogSearch\Model\Indexer\Fulltext;
 use Magento\Elasticsearch\Elasticsearch5\SearchAdapter\Aggregation\Interval as CoreInterval;
+use Magento\Elasticsearch\Model\Adapter\FieldMapperInterface;
+use Magento\Elasticsearch\Model\Config;
+use Magento\Elasticsearch\SearchAdapter\ConnectionManager;
+use Magento\Elasticsearch\SearchAdapter\SearchIndexNameResolver;
 
-/**
- * Aggregate price intervals for search query result.
- */
 class Interval extends CoreInterval
 {
-    /**
-     * Minimal possible value
-     */
-    const DELTA = 0.005;
-
-    /**
-     * @var ConnectionManager
-     */
-    protected $connectionManager;
-
-    /**
-     * @var FieldMapperInterface
-     */
-    protected $fieldMapper;
-
-    /**
-     * @var Config
-     */
-    protected $clientConfig;
-
-    /**
-     * @var string
-     */
-    protected $fieldName;
-
-    /**
-     * @var string
-     */
-    protected $storeId;
-
-    /**
-     * @var array
-     */
-    protected $entityIds;
-
-    /**
-     * @var SearchIndexNameResolver
-     */
-    protected $searchIndexNameResolver;
+    /** Minimal possible value */
+    public const float DELTA = 0.005;
 
     /**
      * @param ConnectionManager $connectionManager
@@ -69,22 +35,14 @@ class Interval extends CoreInterval
      * @param array $entityIds
      */
     public function __construct(
-        ConnectionManager $connectionManager,
+        private readonly ConnectionManager $connectionManager,
         FieldMapperInterface $fieldMapper,
-        Config $clientConfig,
-        SearchIndexNameResolver $searchIndexNameResolver,
-        string $fieldName,
-        string $storeId,
-        array $entityIds
+        private readonly Config $clientConfig,
+        private readonly SearchIndexNameResolver $searchIndexNameResolver,
+        private readonly string $fieldName,
+        private readonly string $storeId,
+        private readonly array $entityIds
     ) {
-        $this->connectionManager = $connectionManager;
-        $this->fieldMapper = $fieldMapper;
-        $this->clientConfig = $clientConfig;
-        $this->fieldName = $fieldName;
-        $this->storeId = $storeId;
-        $this->entityIds = $entityIds;
-        $this->searchIndexNameResolver = $searchIndexNameResolver;
-
         parent::__construct(
             $connectionManager,
             $fieldMapper,
@@ -92,19 +50,18 @@ class Interval extends CoreInterval
             $searchIndexNameResolver,
             $fieldName,
             $storeId,
-            $entityIds,
-
+            $entityIds
         );
     }
 
     /**
-     * @inheritdoc
+     * {@inheritdoc}
      */
     public function load($limit, $offset = null, $lower = null, $upper = null)
     {
-
-        $from = ['gte' => 0];       //Added this because in some situations the $lower is null and $from is not declared
-        $to = ['lt' => 0];          //Added this because in some situations the $data is null and $to is not declared
+        // the bounds are optional on this call, so both sides start at a range the engine accepts
+        $from = ['gte' => 0];
+        $to = ['lt' => 0];
 
         if ($lower) {
             $from = ['gte' => $lower - self::DELTA];
@@ -130,15 +87,14 @@ class Interval extends CoreInterval
         return $this->arrayValuesToFloat($queryResult['hits']['hits'], $this->fieldName);
     }
 
-
     /**
-     * @inheritdoc
+     * {@inheritdoc}
      */
     public function loadPrevious($data, $index, $lower = null)
     {
-
-        $from = ['gte' => 0];       //Added this because in some situations the $lower is null and $from is not declared
-        $to = ['lt' => 0];          //Added this because in some situations the $data is null and $to is not declared
+        // the bounds are optional on this call, so both sides start at a range the engine accepts
+        $from = ['gte' => 0];
+        $to = ['lt' => 0];
 
         if ($lower) {
             $from = ['gte' => $lower - self::DELTA];
@@ -169,11 +125,9 @@ class Interval extends CoreInterval
     }
 
     /**
-     * Conver array values to float type.
-     *
+     * conver array values to float type.
      * @param array $hits
      * @param string $fieldName
-     *
      * @return float[]
      */
     protected function arrayValuesToFloat(array $hits, string $fieldName): array
@@ -187,8 +141,7 @@ class Interval extends CoreInterval
     }
 
     /**
-     * Prepare base query for search.
-     *
+     * prepare base query for search.
      * @param array|null $from
      * @param array|null $to
      * @return array

@@ -1,8 +1,14 @@
 <?php
+
 /**
- * Copyright © Magento, Inc. All rights reserved.
- * See COPYING.txt for license details.
+ * @category    ScandiPWA
+ * @package     ScandiPWA_CatalogGraphQl
+ * @copyright   Copyright © Magento, Inc. All rights reserved.
+ * @copyright   Modifications © Selveq. All rights reserved.
+ * @license     OSL-3.0 (Open Software License ("OSL") v. 3.0)
+ * See LICENSE for license details.
  */
+
 declare(strict_types=1);
 
 namespace ScandiPWA\CatalogGraphQl\Model\Resolver\Products\Query;
@@ -12,94 +18,31 @@ use Magento\Catalog\Api\Data\ProductSearchResultsInterfaceFactory;
 use Magento\Catalog\Model\ResourceModel\Category\CollectionFactory as CategoryCollectionFactory;
 use Magento\CatalogGraphQl\DataProvider\Product\SearchCriteriaBuilder;
 use Magento\CatalogGraphQl\Model\Resolver\Products\DataProvider\ProductSearch;
-use Magento\Framework\GraphQl\Schema\Type\ResolveInfo;
-use Magento\Framework\App\ObjectManager;
-use Magento\Framework\Api\Search\SearchCriteriaInterface;
-use Magento\Framework\Api\Search\SearchResultInterface;
-use Magento\CatalogGraphQl\Model\Resolver\Products\SearchResult;
-use Magento\CatalogGraphQl\Model\Resolver\Products\SearchResultFactory;
-use Magento\GraphQl\Model\Query\ContextInterface;
-use Magento\Search\Api\SearchInterface;
-use Magento\Search\Model\Search\PageSizeProvider;
-use Magento\Search\Model\QueryFactory;
-use Magento\Store\Model\StoreManagerInterface;
 use Magento\CatalogGraphQl\Model\Resolver\Products\Query\FieldSelection;
 use Magento\CatalogGraphQl\Model\Resolver\Products\Query\Search as CoreSearch;
+use Magento\CatalogGraphQl\Model\Resolver\Products\Query\Search\QueryPopularity as CoreQueryPopularity;
+use Magento\CatalogGraphQl\Model\Resolver\Products\Query\Suggestions;
+use Magento\CatalogGraphQl\Model\Resolver\Products\SearchResult;
+use Magento\CatalogGraphQl\Model\Resolver\Products\SearchResultFactory;
+use Magento\Framework\Api\Search\SearchCriteriaInterface;
+use Magento\Framework\Api\Search\SearchResultInterface;
+use Magento\Framework\App\ObjectManager;
+use Magento\Framework\Exception\LocalizedException;
+use Magento\Framework\Exception\NoSuchEntityException;
+use Magento\Framework\GraphQl\Exception\GraphQlInputException;
+use Magento\Framework\GraphQl\Query\Resolver\ArgumentsProcessorInterface;
+use Magento\Framework\GraphQl\Schema\Type\ResolveInfo;
+use Magento\GraphQl\Model\Query\ContextInterface;
+use Magento\Search\Api\SearchInterface;
+use Magento\Search\Model\QueryFactory;
+use Magento\Search\Model\Search\PageSizeProvider;
+use Magento\Store\Model\StoreManagerInterface;
 use ScandiPWA\CatalogGraphQl\Model\Resolver\Products\DataProvider\Product\CriteriaCheck;
 use ScandiPWA\CatalogGraphQl\Model\Resolver\Products\DataProvider\Product\EmulateSearchResult;
 use ScandiPWA\Performance\Model\Resolver\Products\DataPostProcessor;
-use Magento\Framework\GraphQl\Query\Resolver\ArgumentsProcessorInterface;
 
-/**
- * Full text search for catalog using given search criteria.
- */
 class Search extends CoreSearch
 {
-    /**
-     * @var SearchInterface
-     */
-    private $search;
-
-    /**
-     * @var SearchResultFactory
-     */
-    private $searchResultFactory;
-
-    /**
-     * @var PageSizeProvider
-     */
-    private $pageSizeProvider;
-
-    /**
-     * @var FieldSelection
-     */
-    private $fieldSelection;
-
-    /**
-     * @var ProductSearch
-     */
-    private $productsProvider;
-
-    /**
-     * @var SearchCriteriaBuilder
-     */
-    private $searchCriteriaBuilder;
-
-    /**
-     * @var DataPostProcessor
-     */
-    protected $productPostProcessor;
-
-    /**
-     * @var QueryFactory
-     */
-    protected $queryFactory;
-
-    /**
-     * @var StoreManagerInterface
-     */
-    protected $storeManager;
-
-    /**
-     * @var ProductSearchResultsInterfaceFactory
-     */
-    protected $productSearchResultsInterfaceFactory;
-
-    /**
-     * @var EmulateSearchResult
-     */
-    protected $emulateSearchResult;
-
-    /**
-     * @var CategoryCollectionFactory
-     */
-    protected CategoryCollectionFactory $categoryCollectionFactory;
-
-    /**
-     * @var ArgumentsProcessorInterface
-     */
-    protected ArgumentsProcessorInterface $argsSelection;
-
     /**
      * @param SearchInterface $search
      * @param SearchResultFactory $searchResultFactory
@@ -114,51 +57,40 @@ class Search extends CoreSearch
      * @param StoreManagerInterface $storeManager
      * @param CategoryCollectionFactory $categoryCollectionFactory
      * @param ArgumentsProcessorInterface $argsSelection
+     * @param Suggestions|null $suggestions
+     * @param CoreQueryPopularity|null $queryPopularity
      */
     public function __construct(
-        SearchInterface $search,
-        SearchResultFactory $searchResultFactory,
-        ProductSearchResultsInterfaceFactory $productSearchResultsInterfaceFactory,
-        EmulateSearchResult $emulateSearchResult,
-        PageSizeProvider $pageSize,
-        FieldSelection $fieldSelection,
-        ProductSearch $productsProvider,
-        SearchCriteriaBuilder $searchCriteriaBuilder,
-        DataPostProcessor $productPostProcessor,
-        QueryFactory $queryFactory,
-        StoreManagerInterface $storeManager,
-        CategoryCollectionFactory $categoryCollectionFactory,
-        ArgumentsProcessorInterface $argsSelection
+        private readonly SearchInterface $search,
+        private readonly SearchResultFactory $searchResultFactory,
+        private readonly ProductSearchResultsInterfaceFactory $productSearchResultsInterfaceFactory,
+        private readonly EmulateSearchResult $emulateSearchResult,
+        private readonly PageSizeProvider $pageSize,
+        private readonly FieldSelection $fieldSelection,
+        private readonly ProductSearch $productsProvider,
+        private readonly SearchCriteriaBuilder $searchCriteriaBuilder,
+        private readonly DataPostProcessor $productPostProcessor,
+        private readonly QueryFactory $queryFactory,
+        private readonly StoreManagerInterface $storeManager,
+        private readonly CategoryCollectionFactory $categoryCollectionFactory,
+        private readonly ArgumentsProcessorInterface $argsSelection,
+        ?Suggestions $suggestions = null,
+        ?CoreQueryPopularity $queryPopularity = null
     ) {
         parent::__construct(
             $search,
             $searchResultFactory,
-            $pageSize,
             $fieldSelection,
             $productsProvider,
             $searchCriteriaBuilder,
-            $argsSelection
+            $argsSelection,
+            $suggestions ?: ObjectManager::getInstance()->get(Suggestions::class),
+            $queryPopularity ?: ObjectManager::getInstance()->get(CoreQueryPopularity::class)
         );
-
-        $this->search = $search;
-        $this->searchResultFactory = $searchResultFactory;
-        $this->pageSizeProvider = $pageSize;
-        $this->fieldSelection = $fieldSelection;
-        $this->productsProvider = $productsProvider;
-        $this->searchCriteriaBuilder = $searchCriteriaBuilder;
-        $this->productPostProcessor = $productPostProcessor;
-        $this->queryFactory = $queryFactory;
-        $this->storeManager = $storeManager;
-        $this->productSearchResultsInterfaceFactory = $productSearchResultsInterfaceFactory;
-        $this->emulateSearchResult = $emulateSearchResult;
-        $this->categoryCollectionFactory = $categoryCollectionFactory;
-        $this->argsSelection = $argsSelection ?: ObjectManager::getInstance()
-            ->get(ArgumentsProcessorInterface::class);
     }
 
     /**
-     * Return product search results using Search API
-     *
+     * return product search results using Search API
      * @param array $args
      * @param ResolveInfo $info
      * @param ContextInterface $context
@@ -172,16 +104,9 @@ class Search extends CoreSearch
     ): SearchResult {
         $queryFields = $this->fieldSelection->getProductsFieldSelection($info);
         $searchCriteria = $this->buildSearchCriteria($args, $info);
-        $itemsResults = $this->getSearchResults($searchCriteria, $info);
+        $itemsResults = $this->getSearchResults($searchCriteria);
 
-        // When adding a new product through the admin panel, it does not appear
-        // on the category page (without cleaning cache), if the category won`t
-        // mentions in request in Magento Tags (and not just product Tags as now).
-        //
-        // To add the category to tags, need to cause category loading when receiving products for it
-        // (only loading is enough because the tags are added to load_after)
-        //
-        // Related task: https://github.com/scandipwa/scandipwa/issues/4353
+        // the category cache tag is added on load_after, so the filtered category has to be loaded
         if (!empty($args['filter']['category_id'])) {
             $this->categoryCollectionFactory->create()
                 ->addAttributeToSelect('entity_id')
@@ -206,12 +131,10 @@ class Search extends CoreSearch
         $totalPages = $searchCriteria->getPageSize() ?
             ((int)ceil($searchResults->getTotalCount() / $searchCriteria->getPageSize())) : 0;
 
-        // Following lines are added to increment search terms
         if (!empty($args['search']) && strlen(trim($args['search']))) {
             $this->incrementQuery($args['search'], $searchResults->getTotalCount());
         }
 
-        // Following lines are changed
         if (count($queryFields) > 0) {
             $productArray = $this->productPostProcessor->process(
                 $searchResults->getItems(),
@@ -231,54 +154,55 @@ class Search extends CoreSearch
                 'productsSearchResult' => $productArray,
                 'searchAggregation' => $itemsResults->getAggregations(),
                 'pageSize' => $searchCriteria->getPageSize(),
-                'currentPage' => $searchCriteria->getCurrentPage(),
+                'currentPage' => $args['currentPage'],
                 'totalPages' => $totalPages,
             ]
         );
     }
 
     /**
+     * 2.4.9's ProductSearch no longer re-pages the engine result, so the page must be asked of the engine
      * @param SearchCriteriaInterface $searchCriteria
-     * @param ResolveInfo $info
      * @return SearchResultInterface
+     * @throws NoSuchEntityException
+     * @throws GraphQlInputException
      */
-    private function getSearchResults(SearchCriteriaInterface $searchCriteria, ResolveInfo $info): SearchResultInterface
+    private function getSearchResults(SearchCriteriaInterface $searchCriteria): SearchResultInterface
     {
         if (CriteriaCheck::isOnlySingleIdFilter($searchCriteria)) {
             return $this->emulateSearchResult->execute($searchCriteria);
         }
 
-        $realPageSize =  $searchCriteria->getPageSize();
-        $realCurrentPage = $searchCriteria->getCurrentPage();
+        $pageSize = $searchCriteria->getPageSize();
+        $maxPageSize = $this->pageSize->getMaxPageSize();
 
-        // Because of limitations of sort and pagination on search API we will query all IDS
-        $pageSize = $this->pageSizeProvider->getMaxPageSize();
-        $searchCriteria->setPageSize($pageSize);
-        $searchCriteria->setCurrentPage(0);
+        // the engine answers nothing past its result window, so a deeper page is refused, not mis-served
+        if (($searchCriteria->getCurrentPage() + 1) * $pageSize > $maxPageSize) {
+            throw new GraphQlInputException(
+                __(
+                    'currentPage value %1 specified is greater than the %2 page(s) the search engine can return.',
+                    [$searchCriteria->getCurrentPage() + 1, (int)floor($maxPageSize / $pageSize)]
+                )
+            );
+        }
 
-        $itemsResults = $this->search->search($searchCriteria);
-
-        $searchCriteria->setPageSize($realPageSize);
-        $searchCriteria->setCurrentPage($realCurrentPage);
-
-        return $itemsResults;
+        return $this->search->search($searchCriteria);
     }
 
     /**
-     * Build search criteria from query input args
-     *
+     * build search criteria from query input args
      * @param array $args
      * @param ResolveInfo $info
      * @return SearchCriteriaInterface
+     * @throws LocalizedException
+     * @throws GraphQlInputException
      */
     private function buildSearchCriteria(array $args, ResolveInfo $info): SearchCriteriaInterface
     {
         $productFields = (array)$info->getFieldSelection(1);
         $fieldName = $info->fieldName ?? "";
-        $processedArgs = $this->argsSelection->process((string) $fieldName, $args);
-        $searchCriteria = $this->searchCriteriaBuilder->build($processedArgs, $this->getIsIncludeAggregations($info));
-
-        return $searchCriteria;
+        $processedArgs = $this->argsSelection->process((string)$fieldName, $args);
+        return $this->searchCriteriaBuilder->build($processedArgs, $this->getIsIncludeAggregations($info));
     }
 
     /**
@@ -304,11 +228,14 @@ class Search extends CoreSearch
     }
 
     /**
-     * @param $queryText
-     * @param $queryResultCount
+     * @param mixed $queryText
+     * @param mixed $queryResultCount
      * @return void
+     * @throws LocalizedException
+     * @throws NoSuchEntityException
      */
-    private function incrementQuery($queryText, $queryResultCount) {
+    private function incrementQuery($queryText, $queryResultCount)
+    {
         $query = $this->queryFactory->get();
         $query->setQueryText($queryText);
         $query->setNumResults($queryResultCount);

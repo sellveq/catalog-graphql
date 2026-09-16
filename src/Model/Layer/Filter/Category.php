@@ -1,14 +1,14 @@
 <?php
+
 /**
- * ScandiPWA - Progressive Web App for Magento
- *
- * Copyright © Scandiweb, Inc. All rights reserved.
+ * @category    ScandiPWA
+ * @package     ScandiPWA_CatalogGraphQl
+ * @copyright   Copyright © Scandiweb, Inc. All rights reserved.
+ * @copyright   Modifications © Selveq. All rights reserved.
+ * @license     OSL-3.0 (Open Software License ("OSL") v. 3.0)
  * See LICENSE for license details.
- *
- * @license OSL-3.0 (Open Software License ("OSL") v. 3.0)
- * @package scandipwa/module-customer-graph-ql
- * @link https://github.com/scandipwa/module-customer-graph-ql
  */
+
 declare(strict_types=1);
 
 namespace ScandiPWA\CatalogGraphQl\Model\Layer\Filter;
@@ -25,17 +25,9 @@ use Magento\Framework\App\ResourceConnection;
 use Magento\Framework\GraphQl\Query\Uid;
 use ScandiPWA\CatalogGraphQl\Model\Layer\AttributeDataProvider;
 
-/**
- * @inheritdoc
- */
 class Category extends OriginalCategoryBuilder
 {
-    private static $CATEGORY_ATTRIBUTE_CODE = 'category_ids';
-
-    /**
-     * @var AttributeDataProvider
-     */
-    private $attributeDataProvider;
+    private static string $CATEGORY_ATTRIBUTE_CODE = 'category_ids';
 
     /**
      * @param CategoryAttributeQuery $categoryAttributeQuery
@@ -44,6 +36,9 @@ class Category extends OriginalCategoryBuilder
      * @param ResourceConnection $resourceConnection
      * @param LayerFormatter $layerFormatter
      * @param IncludeDirectChildrenOnly $includeDirectChildrenOnly
+     * @param CollectionFactory $categoryCollectionFactory
+     * @param Uid $uidEncoder
+     * @param AttributeDataProvider $attributeDataProvider
      */
     public function __construct(
         CategoryAttributeQuery $categoryAttributeQuery,
@@ -54,9 +49,8 @@ class Category extends OriginalCategoryBuilder
         IncludeDirectChildrenOnly $includeDirectChildrenOnly,
         CollectionFactory $categoryCollectionFactory,
         Uid $uidEncoder,
-        AttributeDataProvider $attributeDataProvider
-    )
-    {
+        private readonly AttributeDataProvider $attributeDataProvider
+    ) {
         parent::__construct(
             $categoryAttributeQuery,
             $attributesMapper,
@@ -67,19 +61,17 @@ class Category extends OriginalCategoryBuilder
             $categoryCollectionFactory,
             $uidEncoder
         );
-
-        $this->attributeDataProvider = $attributeDataProvider;
     }
 
     /**
-     * @inheritdoc
+     * {@inheritdoc}
      */
     public function build(AggregationInterface $aggregation, ?int $storeId): array
     {
         $result = parent::build($aggregation, $storeId);
 
-        // Localize value of the category attribute
-        if(count($result) > 0){
+        // core hard-codes the English bucket label, so the store-scoped attribute label replaces it
+        if (count($result) > 0) {
             $attributeData = $this->attributeDataProvider->getAttributeData(self::$CATEGORY_ATTRIBUTE_CODE, $storeId);
             $attributeLabel = $attributeData['attribute_store_label'] ?? $attributeData['frontend_label'];
 

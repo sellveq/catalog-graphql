@@ -1,51 +1,37 @@
 <?php
+
 /**
  * @category    ScandiPWA
  * @package     ScandiPWA_CatalogGraphQl
- * @author      Denis Protassoff <info@scandiweb.com>
- * @copyright   Copyright (c) 2022 Scandiweb, Ltd (https://scandiweb.com)
+ * @copyright   Copyright © 2022 Scandiweb, Ltd (https://scandiweb.com)
+ * @copyright   Modifications © Selveq. All rights reserved.
+ * @license     OSL-3.0 (Open Software License ("OSL") v. 3.0)
+ * See LICENSE for license details.
  */
 
 declare(strict_types=1);
 
 namespace ScandiPWA\CatalogGraphQl\Model\Resolver;
 
-use Magento\Catalog\Model\Category;
 use Magento\Catalog\Api\CategoryRepositoryInterface;
 use Magento\Catalog\Helper\Category as CategoryHelper;
+use Magento\Catalog\Model\Category;
+use Magento\Catalog\Model\ResourceModel\Category\Collection as CategoryCollection;
 use Magento\Catalog\Model\ResourceModel\Category\StateDependentCollectionFactory;
-use Magento\Framework\GraphQl\Config\Element\Field;
-use Magento\Framework\GraphQl\Schema\Type\ResolveInfo;
 use Magento\Framework\Data\Collection;
+use Magento\Framework\Exception\LocalizedException;
+use Magento\Framework\Exception\NoSuchEntityException;
+use Magento\Framework\GraphQl\Config\Element\Field;
 use Magento\Framework\GraphQl\Query\ResolverInterface;
+use Magento\Framework\GraphQl\Schema\Type\ResolveInfo;
 use Magento\Store\Model\StoreManagerInterface;
 
-/**
- * Class MenuItems
- *
- * @package ScandiPWA\CatalogGraphQl\Model\Resolver
- */
 class MenuItems implements ResolverInterface
 {
-    /**
-     * @var CategoryHelper
-     */
-    protected $catalogCategory;
-
     /**
      * @var StateDependentCollectionFactory
      */
     protected $collectionFactory;
-
-    /**
-     * @var StoreManagerInterface
-     */
-    protected $storeManager;
-
-    /**
-     * @var CategoryRepositoryInterface
-     */
-    protected $categoryRepository;
 
     /**
      * @param CategoryHelper $catalogCategory
@@ -54,36 +40,30 @@ class MenuItems implements ResolverInterface
      * @param CategoryRepositoryInterface $categoryRepository
      */
     public function __construct(
-        CategoryHelper $catalogCategory,
+        private readonly CategoryHelper $catalogCategory,
         StateDependentCollectionFactory $categoryCollectionFactory,
-        StoreManagerInterface $storeManager,
-        CategoryRepositoryInterface $categoryRepository
+        private readonly StoreManagerInterface $storeManager,
+        private readonly CategoryRepositoryInterface $categoryRepository
     ) {
-        $this->catalogCategory = $catalogCategory;
         $this->collectionFactory = $categoryCollectionFactory;
-        $this->storeManager = $storeManager;
-        $this->categoryRepository = $categoryRepository;
     }
 
     /**
-     * Standard Magento menu logic
-     * Magento\Catalog\Plugin\Block\Topmenu
-     *
-     * @inheritdoc
+     * standard Magento menu logic, as in Magento\Catalog\Plugin\Block\Topmenu
+     * {@inheritdoc}
      */
     public function resolve(
         Field $field,
         $context,
         ResolveInfo $info,
-        array $value = null,
-        array $args = null
+        ?array $value = null,
+        ?array $args = null
     ) {
         $rootId = $this->storeManager->getStore()->getRootCategoryId();
         $storeId = $this->storeManager->getStore()->getId();
 
-        /** @var \Magento\Catalog\Model\ResourceModel\Category\Collection $collection */
         $collection = $this->getCategoryTree($storeId, $rootId);
-        // Creating root category for FE compatibility
+        // the storefront menu expects a root row the category tree does not carry
         $mapping = [
             [
                 'category_id' => 0,
@@ -113,20 +93,20 @@ class MenuItems implements ResolverInterface
     }
 
     /**
-     * Get Category Tree
-     *
+     * get Category Tree
      * @param int $storeId
      * @param int $rootId
-     * @return \Magento\Catalog\Model\ResourceModel\Category\Collection
-     * @throws \Magento\Framework\Exception\LocalizedException
+     * @return CategoryCollection
+     * @throws LocalizedException
      */
     protected function getCategoryTree($storeId, $rootId)
     {
-        /** @var \Magento\Catalog\Model\ResourceModel\Category\Collection $collection */
+        /** @var CategoryCollection $collection */
         $collection = $this->collectionFactory->create();
         $collection->setStoreId($storeId);
         $collection->addAttributeToSelect('name');
-        $collection->addFieldToFilter('path', ['like' => '1/' . $rootId . '/%']); //load only from store root
+        // load only from store root
+        $collection->addFieldToFilter('path', ['like' => '1/' . $rootId . '/%']);
         $collection->addAttributeToFilter('include_in_menu', 1);
         $collection->addIsActiveFilter();
         $collection->addNavigationMaxDepthFilter();
@@ -140,11 +120,10 @@ class MenuItems implements ResolverInterface
     }
 
     /**
-     * Convert category to array
-     *
-     * @param \Magento\Catalog\Model\Category $category
-     * @param int $itemId
+     * convert category to array
+     * @param Category $category
      * @return array
+     * @throws NoSuchEntityException
      */
     protected function getCategoryAsArray($category)
     {
@@ -155,19 +134,16 @@ class MenuItems implements ResolverInterface
             'url' => $this->catalogCategory->getCategoryUrl($category),
             'parent_id' => $category->getParentId(),
             'position' => $category->getPosition(),
-            // For correct placeholders on FE
-            // Default value is Products because if
-            // display mode wasn't changed it returns null
+            // a category never saved with a display mode returns null, not the default
             'display_mode' => $this->getCategoryDisplayMode($category) ?? Category::DM_PRODUCT
         ];
     }
 
     /**
-     * Get category display mode
-     * $category from collection doesn't have this
-     *
+     * get category display mode, which a collection-loaded category lacks
      * @param Category $categoryData
      * @return string
+     * @throws NoSuchEntityException
      */
     protected function getCategoryDisplayMode($categoryData)
     {

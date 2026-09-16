@@ -1,8 +1,14 @@
 <?php
+
 /**
- * Copyright © Magento, Inc. All rights reserved.
- * See COPYING.txt for license details.
+ * @category    ScandiPWA
+ * @package     ScandiPWA_CatalogGraphQl
+ * @copyright   Copyright © Magento, Inc. All rights reserved.
+ * @copyright   Modifications © Selveq. All rights reserved.
+ * @license     OSL-3.0 (Open Software License ("OSL") v. 3.0)
+ * See LICENSE for license details.
  */
+
 declare(strict_types=1);
 
 namespace ScandiPWA\CatalogGraphQl\Model\Resolver\Product;
@@ -19,11 +25,6 @@ use Magento\Framework\Pricing\Helper\Data as PriceHelper;
 class Links extends SourceLinks
 {
     /**
-     * @var PriceHelper
-     */
-    protected $pricingHelper;
-
-    /**
      * @param GetDownloadableProductLinks $getDownloadableProductLinks
      * @param ConvertLinksToArray $convertLinksToArray
      * @param PriceHelper $pricingHelper
@@ -31,21 +32,20 @@ class Links extends SourceLinks
     public function __construct(
         GetDownloadableProductLinks $getDownloadableProductLinks,
         ConvertLinksToArray $convertLinksToArray,
-        PriceHelper $pricingHelper
+        private readonly PriceHelper $pricingHelper
     ) {
         parent::__construct($getDownloadableProductLinks, $convertLinksToArray);
-        $this->pricingHelper = $pricingHelper;
     }
 
     /**
-     * @inheritdoc
+     * {@inheritdoc}
      */
     public function resolve(
         Field $field,
-              $context,
+        $context,
         ResolveInfo $info,
-        array $value = null,
-        array $args = null
+        ?array $value = null,
+        ?array $args = null
     ) {
         if (!isset($value['model'])) {
             throw new LocalizedException(__('"model" value should be specified'));
@@ -57,7 +57,9 @@ class Links extends SourceLinks
 
         foreach ($data as &$link) {
             $link['price'] = $this->pricingHelper->currencyByStore(
-                $link['price'], $product->getStore(), false
+                $link['price'],
+                $product->getStore(),
+                false
             );
         }
 

@@ -1,76 +1,63 @@
 <?php
+
 /**
- * ScandiPWA_CatalogGraphQl
- *
  * @category    ScandiPWA
  * @package     ScandiPWA_CatalogGraphQl
- * @author      Viktors Pliska <info@scandiweb.com>
- * @copyright   Copyright (c) 2018 Scandiweb, Ltd (https://scandiweb.com)
+ * @copyright   Copyright © 2018 Scandiweb, Ltd (https://scandiweb.com)
+ * @copyright   Modifications © Selveq. All rights reserved.
+ * @license     OSL-3.0 (Open Software License ("OSL") v. 3.0)
+ * See LICENSE for license details.
  */
 
 declare(strict_types=1);
 
 namespace ScandiPWA\CatalogGraphQl\Plugin\Resolver\Argument;
 
-use Magento\Catalog\Model\Product;
+use Magento\Catalog\Model\Product\Attribute\Source\Status;
+use Magento\Catalog\Model\Product\Visibility;
 use Magento\Catalog\Model\ResourceModel\Product\CollectionFactory;
 use Magento\CatalogWidget\Model\Rule;
+use Magento\Framework\Data\Collection;
 use Magento\Framework\Exception\LocalizedException;
 use Magento\Framework\GraphQl\Query\Resolver\Argument\AstConverter;
-use Magento\Framework\GraphQl\Query\Resolver\Argument\FieldEntityAttributesPool;
 use Magento\Framework\GraphQl\Query\Resolver\Argument\Filter\ClauseFactory;
 use Magento\Rule\Model\Condition\Combine;
 use Magento\Rule\Model\Condition\Sql\Builder;
 use Magento\Widget\Helper\Conditions;
+use Psr\Log\LoggerInterface;
 
-class AstConverterPlugin {
-    /** @var Conditions */
-    protected $conditionsHelper;
+class AstConverterPlugin
+{
+    // every match is materialised into an sku IN (...) clause, so the rule engine needs a ceiling of its own
+    public const int MAX_CONDITION_MATCHES = 500;
 
-    /** @var Rule */
-    protected $rule;
+    private const string MATCH_LIMIT_GUARD = 'conditions_match_limit';
 
-    /** @var FieldEntityAttributesPool */
-    protected $fieldEntityAttributesPool;
-
-    /** @var CollectionFactory */
-    protected $productCollectionFactory;
-
-    /** @var Builder */
-    protected $sqlBuilder;
-
-    /** @var ClauseFactory */
-    protected $clauseFactory;
+    // an empty IN list is dropped by the search request, so a rule matching nothing filters on an impossible sku
+    private const string NO_MATCH_SKU = '';
 
     /**
-     * AstConverterPlugin constructor.
      * @param Conditions $conditionsHelper
      * @param Rule $rule
      * @param ClauseFactory $clauseFactory
-     * @param FieldEntityAttributesPool $fieldEntityAttributesPool
      * @param Builder $sqlBuilder
      * @param CollectionFactory $productCollectionFactory
+     * @param Visibility $visibility
+     * @param LoggerInterface $logger
      */
     public function __construct(
-        Conditions $conditionsHelper,
-        Rule $rule,
-        ClauseFactory $clauseFactory,
-        FieldEntityAttributesPool $fieldEntityAttributesPool,
-        Builder $sqlBuilder,
-        CollectionFactory $productCollectionFactory
-    ) {
-        $this->fieldEntityAttributesPool = $fieldEntityAttributesPool;
-        $this->conditionsHelper = $conditionsHelper;
-        $this->clauseFactory = $clauseFactory;
-        $this->rule = $rule;
-        $this->sqlBuilder = $sqlBuilder;
-        $this->productCollectionFactory = $productCollectionFactory;
-    }
+        private readonly Conditions $conditionsHelper,
+        private readonly Rule $rule,
+        private readonly ClauseFactory $clauseFactory,
+        private readonly Builder $sqlBuilder,
+        private readonly CollectionFactory $productCollectionFactory,
+        private readonly Visibility $visibility,
+        private readonly LoggerInterface $logger
+    ) {}
 
     /**
-     * Get conditions
-     *
-     * @param $conditions
+     * get conditions
+     * @param mixed $conditions
      * @return Combine
      */
     protected function getConditions($conditions)
@@ -90,17 +77,37 @@ class AstConverterPlugin {
     }
 
     /**
-     * @param $conditionValue
-     * @return array
+     * scoped as the products path scopes it, and bounded so one condition cannot materialise a catalogue
+     * @param mixed $conditionValue
+     * @return string[]
      * @throws LocalizedException
      */
-    protected function loadProductSKUs($conditionValue): array {
+    protected function loadProductSKUs($conditionValue): array
+    {
         $conditionDecodedValue = base64_decode($conditionValue);
         $collection = $this->productCollectionFactory->create();
         $conditions = $this->getConditions($conditionDecodedValue);
         $conditions->collectValidatedAttributes($collection);
         $this->sqlBuilder->attachConditionToCollection($collection, $conditions);
-        $collection->addAttributeToSelect('sku');
+        $collection->addAttributeToSelect('sku')
+            ->addAttributeToFilter('status', Status::STATUS_ENABLED)
+            ->setVisibility($this->visibility->getVisibleInCatalogIds())
+            ->addStoreFilter()
+            ->setOrder('entity_id', Collection::SORT_ORDER_ASC)
+            ->setPageSize(self::MAX_CONDITION_MATCHES);
+
+        $matchCount = $collection->getSize();
+
+        // the cut is by entity_id, so the same tree keeps answering with the same products
+        if ($matchCount > self::MAX_CONDITION_MATCHES) {
+            $this->logger->warning(sprintf(
+                '%s: limit %d, matched %d, query proceeds on the first %d by entity_id',
+                self::MATCH_LIMIT_GUARD,
+                self::MAX_CONDITION_MATCHES,
+                $matchCount,
+                self::MAX_CONDITION_MATCHES
+            ));
+        }
 
         $SKUs = [];
         foreach ($collection->getItems() as $item) {
@@ -135,20 +142,16 @@ class AstConverterPlugin {
             throw new LocalizedException(__("'conditions' field only supports 'eq' condition type."));
         }
 
-        /**
-         * This I think, might be in-efficient, or even dangerous. This will loop-over
-         * all the product to match the criteria... Not sure how will this work in 2.4.x
-         * Magento. HOWEVER, this seems the only reliable option we have!
-         */
         $SKUs = $this->loadProductSKUs($conditionArgument[$conditionArgumentType]);
-        unset($arguments['conditions']); // drop conditions from filters
+        // the clause replaces the field, so it must not also travel on as a product attribute filter
+        unset($arguments['conditions']);
 
         $conditions = $next($fieldName, $arguments);
-        array_push($conditions, $this->clauseFactory->create(
+        $conditions[] = $this->clauseFactory->create(
             'sku',
             'in',
-            $SKUs
-        ));
+            $SKUs ?: [self::NO_MATCH_SKU]
+        );
 
         return $conditions;
     }

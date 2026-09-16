@@ -1,9 +1,12 @@
 <?php
+
 /**
  * @category    ScandiPWA
- * @package     ScandiPWA_Performance
- * @author      Alfreds Genkins <info@scandiweb.com>
- * @copyright   Copyright (c) 2019 Scandiweb, Ltd (https://scandiweb.com)
+ * @package     ScandiPWA_CatalogGraphQl
+ * @copyright   Copyright © 2019 Scandiweb, Ltd (https://scandiweb.com)
+ * @copyright   Modifications © Selveq. All rights reserved.
+ * @license     OSL-3.0 (Open Software License ("OSL") v. 3.0)
+ * See LICENSE for license details.
  */
 
 declare(strict_types=1);
@@ -12,48 +15,39 @@ namespace ScandiPWA\CatalogGraphQl\Model\Resolver\Aggregations\DataProvider;
 
 use Magento\Swatches\Helper\Data;
 
-/**
- * Class SwatchData
- * @package ScandiPWA\CatalogGraphQl\Model\Resolver
- */
 class Swatches
 {
     /**
-     * @var array Array of attribute option IDs to request
+     * @var array
      */
     protected $optionIds = [];
 
     /**
-     * @var array Cache of swatch data
+     * @var array
      */
     protected $swatchData = [];
 
     /**
-     * @var Data
-     */
-    protected $swatchHelper;
-
-    /**
-     * Attributes constructor.
      * @param Data $swatchHelper
      */
     public function __construct(
-        Data $swatchHelper
-    ) {
-        $this->swatchHelper = $swatchHelper;
-    }
+        private readonly Data $swatchHelper
+    ) {}
 
     /**
      * @param int $optionId
+     * @return void
      */
-    public function addAttributeOptionId(int $optionId): void {
+    public function addAttributeOptionId(int $optionId): void
+    {
         $this->optionIds[] = $optionId;
     }
 
     /**
      * @return array
      */
-    public function getSwatchData(): array {
+    public function getSwatchData(): array
+    {
         if (!count($this->swatchData)) {
             $this->swatchData = $this->swatchHelper->getSwatchesByOptionsId($this->optionIds);
         }

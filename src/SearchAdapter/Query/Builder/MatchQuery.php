@@ -1,61 +1,34 @@
 <?php
+
 /**
- * ScandiPWA_CatalogGraphQl
- *
- * @category ScandiPWA
- * @package ScandiPWA_CatalogGraphQl
- * @author Daniels Puzina <info@scandiweb.com>
- * @copyright Copyright (c) 2020 Scandiweb, Ltd (https://scandiweb.com)
+ * @category    ScandiPWA
+ * @package     ScandiPWA_CatalogGraphQl
+ * @copyright   Copyright © 2020 Scandiweb, Ltd (https://scandiweb.com)
+ * @copyright   Modifications © Selveq. All rights reserved.
+ * @license     OSL-3.0 (Open Software License ("OSL") v. 3.0)
+ * See LICENSE for license details.
  */
+
+declare(strict_types=1);
 
 namespace ScandiPWA\CatalogGraphQl\SearchAdapter\Query\Builder;
 
 use Magento\Elasticsearch\Model\Adapter\FieldMapper\Product\AttributeProvider;
 use Magento\Elasticsearch\Model\Adapter\FieldMapper\Product\FieldProvider\FieldType\ResolverInterface as TypeResolver;
-use Magento\Elasticsearch\Model\Config;
-use Magento\Elasticsearch\SearchAdapter\Query\ValueTransformerPool;
 use Magento\Elasticsearch\Model\Adapter\FieldMapperInterface;
+use Magento\Elasticsearch\Model\Config;
 use Magento\Elasticsearch\SearchAdapter\Query\Builder\MatchQuery as CoreMatch;
+use Magento\Elasticsearch\SearchAdapter\Query\ValueTransformerPool;
+use Magento\Framework\Search\Request\Query\BoolExpression;
+use Magento\Framework\Search\Request\QueryInterface as RequestQueryInterface;
 
-/**
- * Class MatchQuery
- * @package ScandiPWA\CatalogGraphQl\SearchAdapter\Query\Builder
- */
 class MatchQuery extends CoreMatch
 {
-    /**
-     * Define fuzziness level of search query
-     */
-    public const FUZZINESS_LEVEL = 'AUTO';
+    /** Define fuzziness level of search query */
+    public const string FUZZINESS_LEVEL = 'AUTO';
 
-    /**
-     * Define unsuppoted match_condition types that do not support fuzziness field
-     */
-    protected const UNSUPORTED_FUZZINESS_TYPES = ['match_phrase_prefix'];
-
-    /**
-     * @var FieldMapperInterface
-     */
-    private $fieldMapper;
-
-    /**
-     * @var AttributeProvider
-     */
-    private $attributeProvider;
-
-    /**
-     * @var TypeResolver
-     */
-    private $fieldTypeResolver;
-
-    /**
-     * @var ValueTransformerPool
-     */
-    private $valueTransformerPool;
-    /**
-     * @var Config
-     */
-    private $config;
+    /** Define unsupported match_condition types that do not support fuzziness field */
+    protected const array UNSUPORTED_FUZZINESS_TYPES = ['match_phrase_prefix'];
 
     /**
      * @param FieldMapperInterface $fieldMapper
@@ -65,18 +38,12 @@ class MatchQuery extends CoreMatch
      * @param Config $config
      */
     public function __construct(
-        FieldMapperInterface $fieldMapper,
-        AttributeProvider $attributeProvider,
-        TypeResolver $fieldTypeResolver,
-        ValueTransformerPool $valueTransformerPool,
-        Config $config
+        private readonly FieldMapperInterface $fieldMapper,
+        private readonly AttributeProvider $attributeProvider,
+        private readonly TypeResolver $fieldTypeResolver,
+        private readonly ValueTransformerPool $valueTransformerPool,
+        private readonly Config $config
     ) {
-        $this->fieldMapper = $fieldMapper;
-        $this->attributeProvider = $attributeProvider;
-        $this->fieldTypeResolver = $fieldTypeResolver;
-        $this->valueTransformerPool = $valueTransformerPool;
-        $this->config = $config;
-
         parent::__construct(
             $fieldMapper,
             $attributeProvider,
@@ -87,67 +54,96 @@ class MatchQuery extends CoreMatch
     }
 
     /**
-     * Creates valid ElasticSearch search conditions from Match queries.
-     *
-     * The purpose of this method is to create a structure which represents valid search query
-     * for a full-text search.
-     * It sets search query condition, the search query itself, and sets the search query boost.
-     *
-     * The search query boost is an optional in the search query and therefore it will be set to 1 by default
-     * if none passed with a match query.
-     *
-     * @param array $matches
-     * @param array $queryValue
+     * build ElasticSearch match-query conditions, with boost, quoted phrases and fuzziness
+     * @param array $selectQuery
+     * @param RequestQueryInterface $requestQuery
+     * @param string $conditionType
      * @return array
      */
-    protected function buildQueries(array $matches, array $queryValue)
+    public function build(array $selectQuery, RequestQueryInterface $requestQuery, $conditionType)
     {
-        $conditions = [];
+        $queryValue = $this->prepareQuery($requestQuery->getValue(), $conditionType);
+        $requestQueryBoost = $requestQuery->getBoost() ?: 1;
+        $minimumShouldMatch = $this->config->getElasticsearchConfigData('minimum_should_match');
 
-        // Checking for quoted phrase \"phrase test\", trim escaped surrounding quotes if found
+        // a value wrapped in escaped quotes asks for match_phrase, so the quotes are stripped first
         $count = 0;
         $value = preg_replace('#^"(.*)"$#m', '$1', $queryValue['value'], -1, $count);
         $condition = ($count) ? 'match_phrase' : 'match';
-
         $transformedTypes = [];
-        foreach ($matches as $match) {
+
+        foreach ($requestQuery->getMatches() as $match) {
             $resolvedField = $this->fieldMapper->getFieldName(
                 $match['field'],
                 ['type' => FieldMapperInterface::TYPE_QUERY]
             );
-
             $attributeAdapter = $this->attributeProvider->getByAttributeCode($resolvedField);
             $fieldType = $this->fieldTypeResolver->getFieldType($attributeAdapter);
             $valueTransformer = $this->valueTransformerPool->get($fieldType ?? 'text');
             $valueTransformerHash = \spl_object_hash($valueTransformer);
+
             if (!isset($transformedTypes[$valueTransformerHash])) {
                 $transformedTypes[$valueTransformerHash] = $valueTransformer->transform($value);
             }
             $transformedValue = $transformedTypes[$valueTransformerHash];
             if (null === $transformedValue) {
-                //Value is incompatible with this field type.
+                // the transformer returns null when the value cannot live in this field type
                 continue;
             }
+
             $matchCondition = $match['matchCondition'] ?? $condition;
-            $newCondition = [
-                'condition' => $queryValue['condition'],
-                'body' => [
-                    $matchCondition => [
-                        $resolvedField => [
-                            'query' => $transformedValue,
-                            'boost' => $match['boost'] ?? 1,
-                        ],
-                    ],
-                ],
+            $fields = [];
+            $fields[$resolvedField] = [
+                'query' => $transformedValue,
+                'boost' => $requestQueryBoost + ($match['boost'] ?? 1),
             ];
 
-            if (!in_array($matchCondition, self::UNSUPORTED_FUZZINESS_TYPES)) {
-                $newCondition['body'][$matchCondition][$resolvedField]['fuzziness'] = self::FUZZINESS_LEVEL;
+            if (isset($match['analyzer'])) {
+                $fields[$resolvedField]['analyzer'] = $match['analyzer'];
             }
 
-            $conditions[] = $newCondition;
+            if (!in_array($matchCondition, self::UNSUPORTED_FUZZINESS_TYPES)) {
+                $fields[$resolvedField]['fuzziness'] = self::FUZZINESS_LEVEL;
+            }
+
+            if ($minimumShouldMatch && $this->isConditionSupportMinimumShouldMatch($matchCondition)) {
+                $fields[$resolvedField]['minimum_should_match'] = $minimumShouldMatch;
+            }
+
+            $selectQuery['bool'][$queryValue['condition']][] = [$matchCondition => $fields];
         }
 
-        return $conditions;
+        return $selectQuery;
+    }
+
+    /**
+     * prepare query
+     * @param string $queryValue
+     * @param string $conditionType
+     * @return array
+     */
+    private function prepareQuery(string $queryValue, string $conditionType): array
+    {
+        $condition = $conditionType === BoolExpression::QUERY_CONDITION_NOT
+            ? CoreMatch::QUERY_CONDITION_MUST_NOT
+            : $conditionType;
+
+        return [
+            'condition' => $condition,
+            'value' => $queryValue,
+        ];
+    }
+
+    /**
+     * check does condition support the minimum_should_match field
+     * @param string $condition
+     * @return bool
+     */
+    private function isConditionSupportMinimumShouldMatch(string $condition): bool
+    {
+        return !in_array($condition, [
+            'match_phrase_prefix',
+            'match_phrase',
+        ]);
     }
 }

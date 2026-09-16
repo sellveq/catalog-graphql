@@ -1,10 +1,14 @@
 <?php
+
 /**
- * @category  ScandiPWA
- * @package   ScandiPWA_CatalogGraphQl
- * @author    Aleksandrs Mokans <info@scandiweb.com>
- * @copyright Copyright (c) 2022 Scandiweb, Ltd (https://scandiweb.com)
+ * @category    ScandiPWA
+ * @package     ScandiPWA_CatalogGraphQl
+ * @copyright   Copyright © 2022 Scandiweb, Ltd (https://scandiweb.com)
+ * @copyright   Modifications © Selveq. All rights reserved.
+ * @license     OSL-3.0 (Open Software License ("OSL") v. 3.0)
+ * See LICENSE for license details.
  */
+
 declare(strict_types=1);
 
 namespace ScandiPWA\CatalogGraphQl\Model\Resolver\Products\DataProvider\Product\CollectionProcessor;
@@ -16,16 +20,10 @@ use Magento\Framework\Exception\LocalizedException;
 use Magento\GraphQl\Model\Query\ContextInterface;
 use ScandiPWA\CatalogGraphQl\Model\Resolver\Products\DataProvider\Product\CriteriaCheck;
 
-/**
- * Class VisibilityStatusProcessor
- * @package ScandiPWA\CatalogGraphQl\Model\Resolver\Products\DataProvider\Product\CollectionProcessor
- */
 class VisibilityStatusProcessor extends CoreVisibilityStatusProcessor
 {
     /**
-     * Process collection to add additional joins, attributes, and clauses to a product collection.
-     * Rewrite: avoids joining the visibility attribute, if the filter was already present in searchCriteria
-     *
+     * process collection, skipping the visibility join when searchCriteria already filters on it
      * @param Collection $collection
      * @param SearchCriteriaInterface $searchCriteria
      * @param array $attributeNames
@@ -38,7 +36,7 @@ class VisibilityStatusProcessor extends CoreVisibilityStatusProcessor
         Collection $collection,
         SearchCriteriaInterface $searchCriteria,
         array $attributeNames,
-        ContextInterface $context = null
+        ?ContextInterface $context = null
     ): Collection {
         $collection->joinAttribute('status', 'catalog_product/status', 'entity_id', null, 'inner');
 
@@ -46,6 +44,15 @@ class VisibilityStatusProcessor extends CoreVisibilityStatusProcessor
 
         if (!$visibilityFilter) {
             $collection->joinAttribute('visibility', 'catalog_product/visibility', 'entity_id', null, 'inner');
+        }
+
+        // the parent scopes by website only here, so skipping the join would drop the scope
+        if ($context) {
+            $store = $context->getExtensionAttributes()->getStore();
+
+            if ($store) {
+                $collection->addWebsiteFilter([$store->getWebsiteId()]);
+            }
         }
 
         return $collection;

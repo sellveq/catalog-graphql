@@ -1,11 +1,12 @@
 <?php
+
 /**
- * ScandiPWA_CatalogGraphQl
- *
  * @category    ScandiPWA
  * @package     ScandiPWA_CatalogGraphQl
- * @author      <info@scandiweb.com>
- * @copyright   Copyright (c) 2018 Scandiweb, Ltd (https://scandiweb.com)
+ * @copyright   Copyright © 2018 Scandiweb, Ltd (https://scandiweb.com)
+ * @copyright   Modifications © Selveq. All rights reserved.
+ * @license     OSL-3.0 (Open Software License ("OSL") v. 3.0)
+ * See LICENSE for license details.
  */
 
 declare(strict_types=1);
@@ -13,47 +14,32 @@ declare(strict_types=1);
 namespace ScandiPWA\CatalogGraphQl\Model\Resolver;
 
 use Magento\Framework\Exception\LocalizedException;
-use Magento\Framework\GraphQl\Schema\Type\ResolveInfo;
-use ScandiPWA\CatalogGraphQl\Model\Resolver\Links\Collection;
 use Magento\Framework\GraphQl\Config\Element\Field;
 use Magento\Framework\GraphQl\Query\Resolver\ValueFactory;
 use Magento\Framework\GraphQl\Query\ResolverInterface;
+use Magento\Framework\GraphQl\Schema\Type\ResolveInfo;
+use ScandiPWA\CatalogGraphQl\Model\Resolver\Links\Collection;
 
-/**
- * Class BundleItemLinks
- * @package ScandiPWA\CatalogGraphQl\Model\Resolver
- */
 class BundleItemLinks implements ResolverInterface
 {
-    /** @var Collection */
-    protected $linkCollection;
-
-    /** @var ValueFactory */
-    protected $valueFactory;
-
     /**
-     * BundleItemLinks constructor.
-     *
      * @param Collection $linkCollection
      * @param ValueFactory $valueFactory
      */
     public function __construct(
-        Collection $linkCollection,
-        ValueFactory $valueFactory
-    ) {
-        $this->linkCollection = $linkCollection;
-        $this->valueFactory = $valueFactory;
-    }
+        private readonly Collection $linkCollection,
+        private readonly ValueFactory $valueFactory
+    ) {}
 
     /**
-     * @inheritdoc
+     * {@inheritdoc}
      */
     public function resolve(
         Field $field,
         $context,
         ResolveInfo $info,
-        array $value = null,
-        array $args = null
+        ?array $value = null,
+        ?array $args = null
     ) {
         if (!isset($value['option_id'], $value['parent_id'])) {
             throw new LocalizedException(__('"option_id" and "parent_id" values should be specified'));

@@ -1,9 +1,12 @@
 <?php
+
 /**
  * @category    ScandiPWA
  * @package     ScandiPWA_CatalogGraphQl
- * @author      Denis Protassoff <info@scandiweb.com>
- * @copyright   Copyright (c) 2022 Scandiweb, Ltd (https://scandiweb.com)
+ * @copyright   Copyright © 2022 Scandiweb, Ltd (https://scandiweb.com)
+ * @copyright   Modifications © Selveq. All rights reserved.
+ * @license     OSL-3.0 (Open Software License ("OSL") v. 3.0)
+ * See LICENSE for license details.
  */
 
 declare(strict_types=1);
@@ -11,52 +14,25 @@ declare(strict_types=1);
 namespace ScandiPWA\CatalogGraphQl\DataProvider\Product;
 
 use Magento\Catalog\Api\Data\EavAttributeInterface;
+use Magento\Catalog\Api\ProductAttributeRepositoryInterface;
+use Magento\Catalog\Model\Layer\Filter\Dynamic\AlgorithmFactory;
+use Magento\Catalog\Model\Product\Visibility;
+use Magento\CatalogGraphQl\DataProvider\Product\RequestDataBuilder;
+use Magento\CatalogGraphQl\DataProvider\Product\SearchCriteriaBuilder as MagentoSearchCriteriaBuilder;
+use Magento\CatalogSearch\Model\ResourceModel\Fulltext\Collection\SearchCriteriaResolverFactory;
 use Magento\Framework\Api\FilterBuilder;
 use Magento\Framework\Api\Search\FilterGroupBuilder;
 use Magento\Framework\Api\Search\SearchCriteriaInterface;
 use Magento\Framework\Api\SortOrder;
-use Magento\Framework\App\Config\ScopeConfigInterface;
-use Magento\Framework\GraphQl\Query\Resolver\Argument\SearchCriteria\Builder;
-use Magento\Catalog\Model\Product\Visibility;
 use Magento\Framework\Api\SortOrderBuilder;
-use Magento\CatalogGraphQl\DataProvider\Product\SearchCriteriaBuilder as MagentoSearchCriteriaBuilder;
+use Magento\Framework\App\Config\ScopeConfigInterface;
+use Magento\Framework\GraphQl\Query\Resolver\Argument\SearchCriteria\ArgumentApplierPool;
+use Magento\Framework\GraphQl\Query\Resolver\Argument\SearchCriteria\Builder;
+use Magento\Framework\Search\Request\Config as SearchConfig;
+use Magento\Store\Model\ScopeInterface;
 
-/**
- * Class SearchCriteriaBuilder
- *
- * @package ScandiPWA\CatalogGraphQl\DataProvider\Product
- */
 class SearchCriteriaBuilder extends MagentoSearchCriteriaBuilder
 {
-    /**
-     * @var ScopeConfigInterface
-     */
-    protected $scopeConfig;
-
-    /**
-     * @var FilterBuilder
-     */
-    protected $filterBuilder;
-
-    /**
-     * @var FilterGroupBuilder
-     */
-    protected $filterGroupBuilder;
-
-    /**
-     * @var Builder
-     */
-    protected $builder;
-    /**
-     * @var Visibility
-     */
-    protected $visibility;
-
-    /**
-     * @var SortOrderBuilder
-     */
-    protected $sortOrderBuilder;
-
     /**
      * @param Builder $builder
      * @param ScopeConfigInterface $scopeConfig
@@ -64,26 +40,44 @@ class SearchCriteriaBuilder extends MagentoSearchCriteriaBuilder
      * @param FilterGroupBuilder $filterGroupBuilder
      * @param Visibility $visibility
      * @param SortOrderBuilder $sortOrderBuilder
+     * @param ProductAttributeRepositoryInterface $productAttributeRepository
+     * @param SearchConfig $searchConfig
+     * @param RequestDataBuilder $localData
+     * @param SearchCriteriaResolverFactory $criteriaResolverFactory
+     * @param ArgumentApplierPool $argumentApplierPool
+     * @param array $partialSearchAnalyzers
      */
     public function __construct(
-        Builder $builder,
-        ScopeConfigInterface $scopeConfig,
-        FilterBuilder $filterBuilder,
-        FilterGroupBuilder $filterGroupBuilder,
-        Visibility $visibility,
-        SortOrderBuilder $sortOrderBuilder
+        private readonly Builder $builder,
+        private readonly ScopeConfigInterface $scopeConfig,
+        private readonly FilterBuilder $filterBuilder,
+        private readonly FilterGroupBuilder $filterGroupBuilder,
+        private readonly Visibility $visibility,
+        private readonly SortOrderBuilder $sortOrderBuilder,
+        ProductAttributeRepositoryInterface $productAttributeRepository,
+        SearchConfig $searchConfig,
+        RequestDataBuilder $localData,
+        SearchCriteriaResolverFactory $criteriaResolverFactory,
+        ArgumentApplierPool $argumentApplierPool,
+        array $partialSearchAnalyzers = []
     ) {
-        $this->scopeConfig = $scopeConfig;
-        $this->filterBuilder = $filterBuilder;
-        $this->filterGroupBuilder = $filterGroupBuilder;
-        $this->builder = $builder;
-        $this->visibility = $visibility;
-        $this->sortOrderBuilder = $sortOrderBuilder;
+        parent::__construct(
+            $scopeConfig,
+            $filterBuilder,
+            $filterGroupBuilder,
+            $visibility,
+            $sortOrderBuilder,
+            $productAttributeRepository,
+            $searchConfig,
+            $localData,
+            $criteriaResolverFactory,
+            $argumentApplierPool,
+            $partialSearchAnalyzers
+        );
     }
 
     /**
-     * Build search criteria
-     *
+     * build search criteria
      * @param array $args
      * @param bool $includeAggregation
      * @return SearchCriteriaInterface
@@ -112,26 +106,24 @@ class SearchCriteriaBuilder extends MagentoSearchCriteriaBuilder
         }
 
         $this->addEntityIdSort($searchCriteria, $args);
-        // Removed $isFilter parameter
         $this->addVisibilityFilter($searchCriteria, $isSearch);
 
-        $searchCriteria->setCurrentPage($args['currentPage']);
+        // Framework\Search\Search offsets by currentPage * pageSize, so the engine counts pages from zero
+        $searchCriteria->setCurrentPage($args['currentPage'] - 1);
         $searchCriteria->setPageSize($args['pageSize']);
 
         return $searchCriteria;
     }
 
     /**
-     * Changed to always add visibility filter
-     * Add filter by visibility
-     *
+     * add filter by visibility, always rather than conditionally
      * @param SearchCriteriaInterface $searchCriteria
      * @param bool $isSearch
-     * @param bool $isFilter
+     * @return void
      */
     protected function addVisibilityFilter(SearchCriteriaInterface $searchCriteria, bool $isSearch): void
     {
-        // Removed $isFilter parameter and related check
+        // core applies this only to the search path; the storefront needs it on the filter path too
         $visibilityIds = $isSearch
             ? $this->visibility->getVisibleInSearchIds()
             : $this->visibility->getVisibleInCatalogIds();
@@ -140,10 +132,10 @@ class SearchCriteriaBuilder extends MagentoSearchCriteriaBuilder
     }
 
     /**
-     * Add sort by Entity ID
-     *
+     * add sort by Entity ID
      * @param SearchCriteriaInterface $searchCriteria
      * @param array $args
+     * @return void
      */
     protected function addEntityIdSort(SearchCriteriaInterface $searchCriteria, array $args): void
     {
@@ -157,16 +149,15 @@ class SearchCriteriaBuilder extends MagentoSearchCriteriaBuilder
     }
 
     /**
-     * Prepare price aggregation algorithm
-     *
+     * prepare price aggregation algorithm
      * @param SearchCriteriaInterface $searchCriteria
      * @return void
      */
     protected function preparePriceAggregation(SearchCriteriaInterface $searchCriteria): void
     {
         $priceRangeCalculation = $this->scopeConfig->getValue(
-            \Magento\Catalog\Model\Layer\Filter\Dynamic\AlgorithmFactory::XML_PATH_RANGE_CALCULATION,
-            \Magento\Store\Model\ScopeInterface::SCOPE_STORE
+            AlgorithmFactory::XML_PATH_RANGE_CALCULATION,
+            ScopeInterface::SCOPE_STORE
         );
 
         if ($priceRangeCalculation) {
@@ -175,12 +166,12 @@ class SearchCriteriaBuilder extends MagentoSearchCriteriaBuilder
     }
 
     /**
-     * Add filter to search criteria
-     *
+     * add filter to search criteria
      * @param SearchCriteriaInterface $searchCriteria
      * @param string $field
      * @param mixed $value
      * @param string|null $condition
+     * @return void
      */
     protected function addFilter(
         SearchCriteriaInterface $searchCriteria,
@@ -201,13 +192,17 @@ class SearchCriteriaBuilder extends MagentoSearchCriteriaBuilder
     }
 
     /**
-     * Sort by relevance DESC by default
-     *
+     * sort by relevance DESC by default
      * @param SearchCriteriaInterface $searchCriteria
      * @param array $args
      * @param bool $isSearch
+     * @return void
      */
-    protected function addDefaultSortOrder(SearchCriteriaInterface $searchCriteria, array $args, $isSearch = false): void
+    protected function addDefaultSortOrder(
+        SearchCriteriaInterface $searchCriteria,
+        array $args,
+        $isSearch = false
+    ): void
     {
         $defaultSortOrder = [];
 
@@ -217,10 +212,11 @@ class SearchCriteriaBuilder extends MagentoSearchCriteriaBuilder
                 ->setDirection(SortOrder::SORT_DESC)
                 ->create();
         } else {
-            $categoryIdFilter = isset($args['filter']['category_id']) ? $args['filter']['category_id'] : false;
+            $categoryIdFilter = $args['filter']['category_id'] ?? false;
 
             if ($categoryIdFilter) {
-                if (!is_array($categoryIdFilter[array_key_first($categoryIdFilter)])
+                if (
+                    !is_array($categoryIdFilter[array_key_first($categoryIdFilter)])
                     || count($categoryIdFilter[array_key_first($categoryIdFilter)]) <= 1
                 ) {
                     $defaultSortOrder[] = $this->sortOrderBuilder
@@ -235,11 +231,9 @@ class SearchCriteriaBuilder extends MagentoSearchCriteriaBuilder
     }
 
     /**
-     * Format range filters so replacement works
-     *
-     * Range filter fields in search request must replace value like '%field.from%' or '%field.to%'
-     *
+     * format range filters so '%field.from%' and '%field.to%' placeholders get replaced
      * @param SearchCriteriaInterface $searchCriteria
+     * @return void
      */
     protected function updateRangeFilters(SearchCriteriaInterface $searchCriteria): void
     {

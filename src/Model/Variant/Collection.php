@@ -1,86 +1,59 @@
 <?php
+
 /**
  * @category    ScandiPWA
  * @package     ScandiPWA_CatalogGraphQl
- * @author      Alfreds Genkins <info@scandiweb.com>
- * @copyright   Copyright (c) 2019 Scandiweb, Ltd (https://scandiweb.com)
+ * @copyright   Copyright © 2019 Scandiweb, Ltd (https://scandiweb.com)
+ * @copyright   Modifications © Selveq. All rights reserved.
+ * @license     OSL-3.0 (Open Software License ("OSL") v. 3.0)
+ * See LICENSE for license details.
  */
 
 declare(strict_types=1);
 
 namespace ScandiPWA\CatalogGraphQl\Model\Variant;
 
+use Exception;
 use Magento\Catalog\Api\Data\ProductInterface;
 use Magento\Catalog\Model\Product;
 use Magento\Catalog\Model\ResourceModel\Eav\Attribute;
-use Magento\CatalogInventory\Helper\Stock as StockFilter;
-use Magento\ConfigurableProduct\Model\ResourceModel\Product\Type\Configurable\Product\CollectionFactory;
 use Magento\Catalog\Model\ResourceModel\Product\CollectionFactory as ProductCollectionFactory;
+use Magento\CatalogGraphQl\Model\Resolver\Products\DataProvider\Product\CollectionProcessorInterface;
+use Magento\CatalogInventory\Helper\Stock as StockFilter;
 use Magento\Framework\Api\SearchCriteria;
-use Magento\Framework\App\ResourceConnection;
-use Magento\Framework\EntityManager\MetadataPool;
 use Magento\Framework\Api\SearchCriteriaBuilder;
 use Magento\Framework\Api\SearchCriteriaInterface;
+use Magento\Framework\App\ResourceConnection;
+use Magento\Framework\EntityManager\MetadataPool;
+use Magento\Framework\Exception\LocalizedException;
 use Magento\Store\Model\StoreManagerInterface;
-use Magento\CatalogGraphQl\Model\Resolver\Products\DataProvider\Product\CollectionProcessorInterface;
 use ScandiPWA\CatalogGraphQl\Model\Resolver\Products\DataProvider\Product\CriteriaCheck;
 use ScandiPWA\Performance\Model\Resolver\Products\CollectionPostProcessor;
 use ScandiPWA\Performance\Model\Resolver\Products\DataPostProcessor;
 
-/**
- * Collection for fetching configurable child product data.
- */
 class Collection
 {
-    /** @var CollectionFactory */
-    protected $childCollectionFactory;
-
-    /** @var SearchCriteriaBuilder */
-    protected $searchCriteriaBuilder;
-
-    /** @var MetadataPool */
-    protected $metadataPool;
-
-    /** @var Product[] */
+    /**
+     * @var Product[]
+     */
     protected $parentProducts = [];
 
-    /** @var array */
+    /**
+     * @var array
+     */
     protected $childrenMap = [];
 
-    /** @var string[] */
+    /**
+     * @var string[]
+     */
     protected $attributeCodes = [];
 
-    /** @var CollectionProcessorInterface  */
-    protected $collectionProcessor;
-
-    /** @var CollectionPostProcessor  */
-    protected $collectionPostProcessor;
-
-    /** @var SearchCriteria  */
+    /**
+     * @var SearchCriteria
+     */
     protected $searchCriteria;
 
-    /** @var DataPostProcessor  */
-    protected $dataPostProcessor;
-
-    /** @var DataPostProcessor\Stocks  */
-    protected $stocksPostProcessor;
-
-    /** @var ProductCollectionFactory  */
-    protected $collectionFactory;
-
-    /** @var ResourceConnection  */
-    protected $connection;
-
-    /** @var StockFilter */
-    protected $stockFilter;
-
-    /** @var StoreManagerInterface */
-    protected $storeManager;
-
     /**
-     * Collection constructor.
-     *
-     * @param CollectionFactory $childCollectionFactory
      * @param ProductCollectionFactory $collectionFactory
      * @param SearchCriteriaBuilder $searchCriteriaBuilder
      * @param MetadataPool $metadataPool
@@ -93,41 +66,27 @@ class Collection
      * @param StoreManagerInterface $storeManager
      */
     public function __construct(
-        CollectionFactory $childCollectionFactory,
-        ProductCollectionFactory $collectionFactory,
-        SearchCriteriaBuilder $searchCriteriaBuilder,
-        MetadataPool $metadataPool,
-        CollectionProcessorInterface $collectionProcessor,
-        CollectionPostProcessor $collectionPostProcessor,
-        DataPostProcessor $dataPostProcessor,
-        DataPostProcessor\Stocks $stocksPostProcessor,
-        ResourceConnection $connection,
-        StockFilter $stockFilter,
-        StoreManagerInterface $storeManager
+        private readonly ProductCollectionFactory $collectionFactory,
+        private readonly SearchCriteriaBuilder $searchCriteriaBuilder,
+        private readonly MetadataPool $metadataPool,
+        private readonly CollectionProcessorInterface $collectionProcessor,
+        private readonly CollectionPostProcessor $collectionPostProcessor,
+        private readonly DataPostProcessor $dataPostProcessor,
+        private readonly DataPostProcessor\Stocks $stocksPostProcessor,
+        private readonly ResourceConnection $connection,
+        private readonly StockFilter $stockFilter,
+        private readonly StoreManagerInterface $storeManager
     ) {
-        $this->childCollectionFactory = $childCollectionFactory;
-        $this->searchCriteriaBuilder = $searchCriteriaBuilder;
-        $this->metadataPool = $metadataPool;
-        $this->collectionProcessor = $collectionProcessor;
-        $this->collectionPostProcessor = $collectionPostProcessor;
-        $this->dataPostProcessor = $dataPostProcessor;
-        $this->stocksPostProcessor = $stocksPostProcessor;
-        $this->collectionFactory = $collectionFactory;
-        $this->connection = $connection;
-        $this->stockFilter = $stockFilter;
-        $this->storeManager = $storeManager;
-
         $this->searchCriteria = $this->searchCriteriaBuilder->create();
     }
 
     /**
-     * Add parent to collection filter
-     *
+     * add parent to collection filter
      * @param Product $product
      * @return void
-     * @throws \Exception
+     * @throws Exception
      */
-    public function addParentProduct(Product $product) : void
+    public function addParentProduct(Product $product): void
     {
         $linkField = $this->metadataPool->getMetadata(ProductInterface::class)->getLinkField();
         $productId = $product->getData($linkField);
@@ -144,24 +103,22 @@ class Collection
     }
 
     /**
-     * Add attributes to collection filter
-     *
+     * add attributes to collection filter
      * @param array $attributeCodes
      * @return void
      */
-    public function addEavAttributes(array $attributeCodes) : void
+    public function addEavAttributes(array $attributeCodes): void
     {
         $this->attributeCodes = array_replace($this->attributeCodes, $attributeCodes);
     }
 
     /**
-     * Retrieve child products from for passed in parent id.
-     *
+     * retrieve child products from for passed in parent id.
      * @param int $id
+     * @param mixed $info
      * @return array
-     * @throws \Exception
      */
-    public function getChildProductsByParentId(int $id, $info) : array
+    public function getChildProductsByParentId(int $id, $info): array
     {
         $childrenMap = $this->fetch($info);
 
@@ -173,13 +130,13 @@ class Collection
     }
 
     /**
-     * Retrieve child products from for passed in parent id.
-     *
+     * retrieve child products from for passed in parent id.
      * @param int $id
+     * @param mixed $info
      * @return array
-     * @throws \Exception
+     * @throws LocalizedException
      */
-    public function getChildProductsByParentIdPlp(int $id, $info) : array
+    public function getChildProductsByParentIdPlp(int $id, $info): array
     {
         $childrenMap = $this->fetchPlp($info);
 
@@ -192,6 +149,7 @@ class Collection
 
     /**
      * @param SearchCriteriaInterface $searchCriteria
+     * @return void
      */
     public function setSearchCriteria(SearchCriteriaInterface $searchCriteria)
     {
@@ -199,12 +157,12 @@ class Collection
     }
 
     /**
-     * Get if we should return only one product, or we need to process them all
-     *
+     * get if we should return only one product, or we need to process them all
      * @param bool $includeFilters
      * @return bool
      */
-    protected function getIsReturnSingleChild($includeFilters = false) {
+    protected function getIsReturnSingleChild($includeFilters = false)
+    {
         $isSingleProduct = CriteriaCheck::isSingleProductFilter($this->searchCriteria);
 
         if ($isSingleProduct) {
@@ -220,7 +178,7 @@ class Collection
         foreach ($this->searchCriteria->getFilterGroups() as $filterGroup) {
             foreach ($filterGroup->getFilters() as $filter) {
                 switch ($filter->getField()) {
-                    // if this is a category filter, continue, or if we ignore filters, return true
+                    // a single-product request keeps the listing filters out of the variant criteria
                     case 'category_url_path':
                     case 'category_id':
                     case 'price':
@@ -246,11 +204,11 @@ class Collection
     }
 
     /**
-     * Get list of child and map of them to parent products
-     *
+     * get list of child and map of them to parent products
      * @return array
      */
-    protected function getChildCollectionMapAndList(): array {
+    protected function getChildCollectionMapAndList(): array
+    {
         $childCollectionMap = [];
         $childProductsList = [];
 
@@ -286,7 +244,13 @@ class Collection
         ];
     }
 
-    protected function getSearchCriteria(array $childrenIds, bool $isSingleProduct): SearchCriteriaInterface {
+    /**
+     * @param int[] $childrenIds
+     * @param bool $isSingleProduct
+     * @return SearchCriteriaInterface
+     */
+    protected function getSearchCriteria(array $childrenIds, bool $isSingleProduct): SearchCriteriaInterface
+    {
         if ($isSingleProduct) {
             $filterGroups = $this->searchCriteria->getFilterGroups();
 
@@ -322,11 +286,12 @@ class Collection
     }
 
     /**
-     * Fetch all children products from parent id's.
-     *
+     * fetch all children products from parent id's.
+     * @param mixed $info
      * @return array
      */
-    protected function fetch($info) : array {
+    protected function fetch($info): array
+    {
         if (empty($this->parentProducts) || !empty($this->childrenMap)) {
             return $this->childrenMap;
         }
@@ -411,11 +376,13 @@ class Collection
     }
 
     /**
-     * Fetch all children products from parent id's, optimized for PLP page
-     *
+     * fetch all children products from parent id's, optimized for PLP page
+     * @param mixed $info
      * @return array
+     * @throws LocalizedException
      */
-    protected function fetchPlp($info) : array {
+    protected function fetchPlp($info): array
+    {
         if (empty($this->parentProducts) || !empty($this->childrenMap)) {
             return $this->childrenMap;
         }
@@ -445,7 +412,7 @@ class Collection
 
         $products = $collection->getItems();
 
-        // Populate stock status (use same post processor as for non-plp variants)
+        // the same post processor as the non-PLP variants, so stock resolves identically on both paths
         $stockStatusCallback = $this->stocksPostProcessor->process(
             $products,
             'variants_plp/product',
@@ -453,13 +420,11 @@ class Collection
             ['isSingleProduct' => false]
         );
 
-        // Populate attributes (use more simple logic)
         $productsData = [];
         $productAttributes = [];
 
         /** @var Product $product */
         foreach ($products as $product) {
-            // Skip disabled products
             if (
                 $product->isDisabled()
                 || !in_array($this->storeManager->getWebsite()->getId(), $product->getWebsiteIds())
@@ -468,14 +433,12 @@ class Collection
             }
 
             $productId = $product->getId();
-            $productIds[] = $productId;
 
-            // Create storage for future attributes
             $productAttributes[$productId] = [];
 
             /** @var Attribute $attribute */
             foreach ($product->getAttributes() as $attributeCode => $attribute) {
-                // Skip non-PLP attributes
+                // only listing attributes reach the PLP payload, so the rest are dropped before serialising
                 if (!$attribute->getUsedInProductListing()) {
                     continue;
                 }
@@ -489,7 +452,6 @@ class Collection
                 ];
             }
 
-            // Set stock status
             $stockStatusCallback($product);
 
             $productsData[$product->getId()] = $product->getData() + [

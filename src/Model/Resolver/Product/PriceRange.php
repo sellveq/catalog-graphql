@@ -1,37 +1,39 @@
 <?php
+
 /**
- * Copyright © Magento, Inc. All rights reserved.
- * See COPYING.txt for license details.
+ * @category    ScandiPWA
+ * @package     ScandiPWA_CatalogGraphQl
+ * @copyright   Copyright © Magento, Inc. All rights reserved.
+ * @copyright   Modifications © Selveq. All rights reserved.
+ * @license     OSL-3.0 (Open Software License ("OSL") v. 3.0)
+ * See LICENSE for license details.
  */
+
 declare(strict_types=1);
 
 namespace ScandiPWA\CatalogGraphQl\Model\Resolver\Product;
 
-use Magento\CatalogGraphQl\Model\Resolver\Product\Price\Discount;
-use Magento\CatalogGraphQl\Model\Resolver\Product\Price\ProviderPool as PriceProviderPool;
-use Magento\Framework\App\Config\ScopeConfigInterface;
-use Magento\Framework\GraphQl\Config\Element\Field;
-use Magento\Framework\GraphQl\Schema\Type\ResolveInfo;
 use Magento\Catalog\Helper\Data as TaxHelper;
 use Magento\Catalog\Model\Product;
 use Magento\Catalog\Model\Product\Type as ProductType;
 use Magento\Catalog\Pricing\Price\FinalPrice;
 use Magento\Catalog\Pricing\Price\RegularPrice;
-use Magento\Framework\Exception\LocalizedException;
-use Magento\Framework\Pricing\SaleableInterface;
-use Magento\Framework\Pricing\PriceCurrencyInterface;
-use Magento\Store\Api\Data\StoreInterface;
+use Magento\CatalogGraphQl\Model\PriceRangeDataProvider;
+use Magento\CatalogGraphQl\Model\Resolver\Product\Price\ProviderPool as PriceProviderPool;
 use Magento\CatalogGraphQl\Model\Resolver\Product\PriceRange as CorePriceRange;
 use Magento\ConfigurableProduct\Model\Product\Type\Configurable;
-use Magento\CatalogGraphQl\Model\PriceRangeDataProvider;
+use Magento\Framework\App\Config\ScopeConfigInterface;
+use Magento\Framework\Exception\LocalizedException;
+use Magento\Framework\GraphQl\Config\Element\Field;
+use Magento\Framework\GraphQl\Schema\Type\ResolveInfo;
+use Magento\Framework\Pricing\SaleableInterface;
+use Magento\Store\Api\Data\StoreInterface;
+use Magento\Store\Model\ScopeInterface;
 
-/**
- * Format product's pricing information for price_range field
- */
 class PriceRange extends CorePriceRange
 {
-    const XML_PRICE_INCLUDES_TAX = 'tax/calculation/price_includes_tax';
-    const FINAL_PRICE = 'final_price';
+    public const string XML_PRICE_INCLUDES_TAX = 'tax/calculation/price_includes_tax';
+    public const string FINAL_PRICE = 'final_price';
 
     /**
      * @var float
@@ -39,68 +41,29 @@ class PriceRange extends CorePriceRange
     protected $zeroThreshold = 0.0001;
 
     /**
-     * @var Discount
-     */
-    protected $discount;
-
-    /**
-     * @var PriceProviderPool
-     */
-    protected $priceProviderPool;
-
-    /**
-     * @var PriceCurrencyInterface
-     */
-    protected PriceCurrencyInterface $priceCurrency;
-
-    /**
-     * @var ScopeConfigInterface
-     */
-    protected $scopeConfig;
-
-    /**
-     * @var TaxHelper
-     */
-    protected $taxHelper;
-
-    /**
-     * @var PriceRangeDataProvider
-     */
-    private PriceRangeDataProvider $priceRangeDataProvider;
-
-    /**
      * @param PriceProviderPool $priceProviderPool
-     * @param Discount $discount
+     * @param ScopeConfigInterface $scopeConfig
+     * @param TaxHelper $taxHelper
+     * @param PriceRangeDataProvider $priceRangeDataProvider
      */
     public function __construct(
-        PriceProviderPool $priceProviderPool,
-        Discount $discount,
-        PriceCurrencyInterface $priceCurrency,
-        ScopeConfigInterface $scopeConfig,
-        TaxHelper $taxHelper,
+        private readonly PriceProviderPool $priceProviderPool,
+        private readonly ScopeConfigInterface $scopeConfig,
+        private readonly TaxHelper $taxHelper,
         PriceRangeDataProvider $priceRangeDataProvider
-    )
-    {
-        parent::__construct(
-            $priceRangeDataProvider,
-        );
-
-        $this->priceProviderPool = $priceProviderPool;
-        $this->discount = $discount;
-        $this->priceCurrency = $priceCurrency;
-        $this->scopeConfig = $scopeConfig;
-        $this->taxHelper = $taxHelper;
+    ) {
+        parent::__construct($priceRangeDataProvider);
     }
 
     /**
-     * @inheritdoc
+     * {@inheritdoc}
      */
     public function resolve(
         Field $field,
         $context,
         ResolveInfo $info,
-        array $value = null,
-        array $args = null
+        ?array $value = null,
+        ?array $args = null
     ) {
         if (!isset($value['model'])) {
             throw new LocalizedException(__('"model" value should be specified'));
@@ -124,8 +87,7 @@ class PriceRange extends CorePriceRange
     }
 
     /**
-     * Get formatted minimum product price
-     *
+     * get formatted minimum product price
      * @param SaleableInterface $product
      * @param StoreInterface $store
      * @return array
@@ -134,21 +96,21 @@ class PriceRange extends CorePriceRange
     {
         $priceProvider = $this->priceProviderPool->getProviderByProductType($product->getTypeId());
 
-        $regularPrice = (float) $priceProvider->getMinimalRegularPrice($product)->getValue();
+        $regularPrice = (float)$priceProvider->getMinimalRegularPrice($product)->getValue();
         $finalPrice = 0;
 
         if ($product->getTypeId() === Configurable::TYPE_CODE) {
             $finalPrice = $product->getPriceInfo()->getPrice(self::FINAL_PRICE)->getValue();
         } else {
-            $finalPrice = (float) $priceProvider->getMinimalFinalPrice($product)->getValue();
+            $finalPrice = (float)$priceProvider->getMinimalFinalPrice($product)->getValue();
         }
 
         $discount = $this->calculateDiscount($product, $regularPrice, $finalPrice);
 
-        $regularPriceExclTax = (float) $priceProvider->getMinimalRegularPrice($product)->getBaseAmount();
-        $finalPriceExclTax = (float) $priceProvider->getMinimalFinalPrice($product)->getBaseAmount();
+        $regularPriceExclTax = (float)$priceProvider->getMinimalRegularPrice($product)->getBaseAmount();
+        $finalPriceExclTax = (float)$priceProvider->getMinimalFinalPrice($product)->getBaseAmount();
 
-        if($product->getTypeId() == ProductType::TYPE_SIMPLE) {
+        if ($product->getTypeId() == ProductType::TYPE_SIMPLE) {
             $priceInfo = $product->getPriceInfo();
             $defaultRegularPrice = $priceInfo->getPrice(RegularPrice::PRICE_CODE)->getAmount()->getValue();
             $defaultFinalPrice = $priceInfo->getPrice(FinalPrice::PRICE_CODE)->getAmount()->getValue();
@@ -156,26 +118,32 @@ class PriceRange extends CorePriceRange
 
             $discount = $this->calculateDiscount($product, $defaultRegularPrice, $defaultFinalPrice);
         } else {
-            $defaultRegularPrice = $this->taxHelper->getTaxPrice($product, $product->getPrice(), $this->isPriceIncludesTax());
-            $defaultFinalPrice = (float) round($priceProvider->getRegularPrice($product)->getValue(), 2);
-            $defaultFinalPriceExclTax = (float) $priceProvider->getRegularPrice($product)->getBaseAmount();
+            $defaultRegularPrice = $this->taxHelper->getTaxPrice(
+                $product,
+                $product->getPrice(),
+                $this->isPriceIncludesTax()
+            );
+            $defaultFinalPrice = (float)round($priceProvider->getRegularPrice($product)->getValue(), 2);
+            $defaultFinalPriceExclTax = (float)$priceProvider->getRegularPrice($product)->getBaseAmount();
         }
 
-        $defaultRegularPrice = isset($defaultRegularPrice) ? $defaultRegularPrice : 0;
-        $defaultFinalPrice = isset($defaultFinalPrice) ? $defaultFinalPrice : 0;
-        $defaultFinalPriceExclTax = isset($defaultFinalPriceExclTax) ? $defaultFinalPriceExclTax : 0;
-
         $minPriceArray = $this->formatPrice(
-            $regularPrice, $regularPriceExclTax, $finalPrice, $finalPriceExclTax,
-            $defaultRegularPrice, $defaultFinalPrice, $defaultFinalPriceExclTax, $discount, $store
+            $regularPrice,
+            $regularPriceExclTax,
+            $finalPrice,
+            $finalPriceExclTax,
+            $defaultRegularPrice,
+            $defaultFinalPrice,
+            $defaultFinalPriceExclTax,
+            $discount,
+            $store
         );
         $minPriceArray['model'] = $product;
         return $minPriceArray;
     }
 
     /**
-     * Get formatted maximum product price
-     *
+     * get formatted maximum product price
      * @param SaleableInterface $product
      * @param StoreInterface $store
      * @return array
@@ -184,15 +152,15 @@ class PriceRange extends CorePriceRange
     {
         $priceProvider = $this->priceProviderPool->getProviderByProductType($product->getTypeId());
 
-        $regularPrice = (float) $priceProvider->getMaximalRegularPrice($product)->getValue();
-        $finalPrice = (float) $priceProvider->getMaximalFinalPrice($product)->getValue();
+        $regularPrice = (float)$priceProvider->getMaximalRegularPrice($product)->getValue();
+        $finalPrice = (float)$priceProvider->getMaximalFinalPrice($product)->getValue();
 
         $discount = $this->calculateDiscount($product, $regularPrice, $finalPrice);
 
-        $regularPriceExclTax = (float) $priceProvider->getMaximalRegularPrice($product)->getBaseAmount();
-        $finalPriceExclTax = (float) $priceProvider->getMaximalFinalPrice($product)->getBaseAmount();
+        $regularPriceExclTax = (float)$priceProvider->getMaximalRegularPrice($product)->getBaseAmount();
+        $finalPriceExclTax = (float)$priceProvider->getMaximalFinalPrice($product)->getBaseAmount();
 
-        if($product->getTypeId() == ProductType::TYPE_SIMPLE) {
+        if ($product->getTypeId() == ProductType::TYPE_SIMPLE) {
             $priceInfo = $product->getPriceInfo();
             $defaultRegularPrice = $priceInfo->getPrice(RegularPrice::PRICE_CODE)->getAmount()->getValue();
             $defaultFinalPrice = $priceInfo->getPrice(FinalPrice::PRICE_CODE)->getAmount()->getValue();
@@ -200,28 +168,40 @@ class PriceRange extends CorePriceRange
 
             $discount = $this->calculateDiscount($product, $defaultRegularPrice, $defaultFinalPrice);
         } else {
-            $defaultRegularPrice = $this->taxHelper->getTaxPrice($product, $product->getPrice(), $this->isPriceIncludesTax());
-            $defaultFinalPrice = (float) round($priceProvider->getRegularPrice($product)->getValue(), 2);
-            $defaultFinalPriceExclTax = (float) $priceProvider->getRegularPrice($product)->getBaseAmount();
+            $defaultRegularPrice = $this->taxHelper->getTaxPrice(
+                $product,
+                $product->getPrice(),
+                $this->isPriceIncludesTax()
+            );
+            $defaultFinalPrice = (float)round($priceProvider->getRegularPrice($product)->getValue(), 2);
+            $defaultFinalPriceExclTax = (float)$priceProvider->getRegularPrice($product)->getBaseAmount();
         }
 
-        $defaultRegularPrice = isset($defaultRegularPrice) ? $defaultRegularPrice : 0;
-        $defaultFinalPrice = isset($defaultFinalPrice) ? $defaultFinalPrice : 0;
-        $defaultFinalPriceExclTax = isset($defaultFinalPriceExclTax) ? $defaultFinalPriceExclTax : 0;
-
         $maxPriceArray = $this->formatPrice(
-            $regularPrice, $regularPriceExclTax, $finalPrice, $finalPriceExclTax,
-            $defaultRegularPrice, $defaultFinalPrice, $defaultFinalPriceExclTax, $discount, $store
+            $regularPrice,
+            $regularPriceExclTax,
+            $finalPrice,
+            $finalPriceExclTax,
+            $defaultRegularPrice,
+            $defaultFinalPrice,
+            $defaultFinalPriceExclTax,
+            $discount,
+            $store
         );
         $maxPriceArray['model'] = $product;
         return $maxPriceArray;
     }
 
     /**
-     * Format price for GraphQl output
-     *
+     * format price for GraphQl output
      * @param float $regularPrice
+     * @param float $regularPriceExclTax
      * @param float $finalPrice
+     * @param float $finalPriceExclTax
+     * @param float $defaultRegularPrice
+     * @param float $defaultFinalPrice
+     * @param float $defaultFinalPriceExclTax
+     * @param array $discount
      * @param StoreInterface $store
      * @return array
      */
@@ -270,19 +250,16 @@ class PriceRange extends CorePriceRange
     }
 
     /**
-     * Calculates correct discount amount
-     * - Bundle items can contain $regularPrice and $finalFrice from two different
-     * - product instances, thus we are intersted in BE set special price procentage.
-     *
+     * calculate the discount from the special price percentage, which bundle items need
      * @param Product $product
      * @param float $regularPrice
      * @param float $finalPrice
      * @return array
      */
-    protected function calculateDiscount(Product $product, float $regularPrice, float $finalPrice) : array
+    protected function calculateDiscount(Product $product, float $regularPrice, float $finalPrice): array
     {
         if ($product->getTypeId() !== 'bundle') {
-            // Calculate percent_off with higher precision to avoid +/- 0.01 price differences on frontend
+            // the storefront recomputes the money value from percent_off, so rounding here shifts it by a cent
             $priceDifference = $regularPrice - $finalPrice;
 
             return [
@@ -291,7 +268,7 @@ class PriceRange extends CorePriceRange
             ];
         }
 
-        // Bundle products have special price set in % (percents)
+        // a bundle stores its special price as a percentage, every other type as an amount
         $specialPricePrecentage = $this->getSpecialProductPrice($product);
         $percentOff = is_null($specialPricePrecentage) ? 0 : 100 - $specialPricePrecentage;
 
@@ -302,8 +279,7 @@ class PriceRange extends CorePriceRange
     }
 
     /**
-     * Get value difference between two prices
-     *
+     * get value difference between two prices
      * @param float $regularPrice
      * @param float $finalPrice
      * @return float
@@ -319,8 +295,7 @@ class PriceRange extends CorePriceRange
     }
 
     /**
-     * Get percent difference between two prices
-     *
+     * get percent difference between two prices
      * @param float $regularPrice
      * @param float $finalPrice
      * @return float
@@ -337,10 +312,9 @@ class PriceRange extends CorePriceRange
     }
 
     /**
-     * Gets [active] special price value
-     *
+     * gets [active] special price value
      * @param Product $product
-     * @return float
+     * @return float|null
      */
     protected function getSpecialProductPrice(Product $product): ?float
     {
@@ -349,7 +323,6 @@ class PriceRange extends CorePriceRange
             return null;
         }
 
-        // Special price range
         $from = strtotime($product->getSpecialFromDate());
         $to = $product->getSpecialToDate() === null ? null : strtotime($product->getSpecialToDate());
         $now = time();
@@ -357,10 +330,14 @@ class PriceRange extends CorePriceRange
         return ($now >= $from && $now <= $to) || ($now >= $from && is_null($to)) ? (float)$specialPrice : null;
     }
 
-    protected function isPriceIncludesTax(){
+    /**
+     * @return mixed
+     */
+    protected function isPriceIncludesTax()
+    {
         return $this->scopeConfig->getValue(
             self::XML_PRICE_INCLUDES_TAX,
-            \Magento\Store\Model\ScopeInterface::SCOPE_STORES
+            ScopeInterface::SCOPE_STORES
         );
     }
 }

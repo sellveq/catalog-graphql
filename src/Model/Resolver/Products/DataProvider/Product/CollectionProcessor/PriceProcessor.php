@@ -1,8 +1,14 @@
 <?php
+
 /**
- * Copyright © Magento, Inc. All rights reserved.
- * See COPYING.txt for license details.
+ * @category    ScandiPWA
+ * @package     ScandiPWA_CatalogGraphQl
+ * @copyright   Copyright © Magento, Inc. All rights reserved.
+ * @copyright   Modifications © Selveq. All rights reserved.
+ * @license     OSL-3.0 (Open Software License ("OSL") v. 3.0)
+ * See LICENSE for license details.
  */
+
 declare(strict_types=1);
 
 namespace ScandiPWA\CatalogGraphQl\Model\Resolver\Products\DataProvider\Product\CollectionProcessor;
@@ -12,14 +18,9 @@ use Magento\CatalogGraphQl\Model\Resolver\Products\DataProvider\Product\Collecti
 use Magento\Framework\Api\SearchCriteriaInterface;
 use Magento\GraphQl\Model\Query\ContextInterface;
 
-/**
- * Adds price data to product collection
- *
- * {@inheritdoc}
- */
 class PriceProcessor implements CollectionProcessorInterface
 {
-    const PRICE_FIELD = 'price_range';
+    public const string PRICE_FIELD = 'price_range';
 
     /**
      * {@inheritdoc}
@@ -28,13 +29,12 @@ class PriceProcessor implements CollectionProcessorInterface
         Collection $collection,
         SearchCriteriaInterface $searchCriteria,
         array $attributeNames,
-        ContextInterface $context = null
+        ?ContextInterface $context = null
     ): Collection {
         // add tax percent, no-matter what
         $collection->addTaxPercents();
 
         if (in_array(self::PRICE_FIELD, $attributeNames, true)) {
-            /** @var $collection Collection */
             $collection->addPriceData();
         }
 
